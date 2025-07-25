@@ -13,10 +13,10 @@ NORMAL = False               # True → standard normal
 
 class MCMC(Scene):
     def construct(self):
-        ## 1. axes & styling  --------------------------------------------------
+        # region 1. axes & styling  --------------------------------------------------
         ax = Axes(
             x_range=[-4, 4],
-            y_range=[-0.1, 0.6],
+            y_range=[-0.03, 0.6],
             width=10,
             height=5.75,
             x_axis_config=dict(
@@ -36,7 +36,9 @@ class MCMC(Scene):
         self.plot_group.add(ax)
         self.add(self.plot_group)
 
-        ## 2. PDF curve --------------------------------------------------------
+        # endregion
+
+        # region 2. PDF curve --------------------------------------------------------
         pdf_curve = ax.get_graph(
             lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
             0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
@@ -46,12 +48,16 @@ class MCMC(Scene):
     
         self.play(ShowCreation(pdf_curve), run_time=2)
 
-        # ## 3. containers for scatter & histogram ------------------------------
+        # endregion
+
+        # region 3. containers for scatter & histogram ------------------------------
         scatter_dots      = VGroup()
         histogram_bars    = VGroup()
         self.plot_group.add(scatter_dots, histogram_bars)
 
-        # ## 4. choose sample points (here: scripted demo) -----------------------
+        # endregion
+
+        # region 4. choose sample points (here: scripted demo) -----------------------
         def mcmc_sampling(target_pdf, nsamples=500, xinit=0.0):
             x = xinit
             samples = [x]
@@ -85,8 +91,10 @@ class MCMC(Scene):
         monte_carlo_text = Text("Monte Carlo", font="Gill Sans", font_size=48)
         mcmc_text = VGroup(markov_chain_text, monte_carlo_text).arrange(RIGHT, buff=0.3)
         mcmc_text.to_edge(UP, buff=0.5)  # Center at top of screen
-        
-        # ## 5. animate each sample ---------------------------------------------
+
+        # endregion
+
+        # region 5. animate each sample ---------------------------------------------
         sample_dots = []  # Store dots in order for later chain creation
         
         # Start writing the text as we begin sampling
@@ -94,7 +102,7 @@ class MCMC(Scene):
         
         for i, x in enumerate(sample_xs):
             # scatter point
-            dot = Dot(ax.c2p(x, 0), radius=0.15, fill_color=TBLUE, fill_opacity=0.6)
+            dot = Dot(ax.c2p(x, 0), radius=0.1, fill_color=TBLUE, fill_opacity=0.6)
             scatter_dots.add(dot)
             sample_dots.append(dot)  # Store for chain creation
 
@@ -153,37 +161,26 @@ class MCMC(Scene):
         # Store sample dots for chain creation
         self.sample_dots = sample_dots
 
-        # ## 6. Rotate and position the entire plot -----------------------------
-        # Rotate 90 degrees clockwise and move to left side
-        self.play(
-            self.plot_group.animate.scale(0.8).rotate(-PI/2).scale(0.7).to_edge(LEFT, buff=1),
-            run_time=2
-        )
-        
-        # # Then fade the histogram and PDF curve to focus on chain visualization
-        # self.play(
-        #     histogram_bars.animate.set_fill(opacity=0.1).set_stroke(opacity=0.2),
-        #     pdf_curve.animate.set_stroke(opacity=0.3),
-        #     run_time=0.5
-        # )
+        # endregion
 
-        self.wait(1)
-        
-        # ## 7. Create MCMC chain visualization --------------------------------
+        # region 6. Create MCMC chain visualization --------------------------------
         # Create a "slinky" effect where the chain connects dots in MCMC order
         # and gets progressively pulled away from the axis
         
+        # Store original axis positions for each dot
+        original_axis_positions = [dot.get_center().copy() for dot in self.sample_dots]
+        
         # After rotation, the "up" direction from the axis is now RIGHT
-        chain_direction = RIGHT
-        max_extension = 4.0  # Maximum distance the chain extends from the axis
+        chain_direction = UP
+        max_extension = 80.0  # Maximum distance the chain extends from the axis
         
         # Create the initial chain connecting all dots in MCMC order
         def get_chain_points(pull_factor=0.0):
             """Get chain points with varying extension based on pull_factor (0 to 1)"""
             chain_points = []
             for i, dot in enumerate(self.sample_dots):
-                # Start from the dot's current position on the axis
-                axis_point = dot.get_center()
+                # Start from the original axis position, not current position
+                axis_point = original_axis_positions[i]
                 
                 # Calculate how far this point extends based on its position in the chain
                 # Earlier samples (lower i) extend further as we "pull" the chain
@@ -209,8 +206,8 @@ class MCMC(Scene):
         self.add(chain_path)
         
         # Center position for "Markov Chain" when it's alone
-        center_position = UP * 3.5
-        
+        center_position = LEFT * 3.5 + UP * 0.5
+
         # Animate the "slinky" pulling effect with text sliding
         def update_chain(mob, alpha):
             """Update function for the chain pulling animation"""
@@ -236,7 +233,9 @@ class MCMC(Scene):
         
         self.wait(1)
 
-        # ## 8. Sequential highlight of first ~43 chain points ---------------
+        # endregion
+
+        # region 7. Sequential highlight of first ~43 chain points ---------------
         # First fade the entire chain and dots to low opacity
         num_highlights = min(45, len(self.sample_dots))
         
@@ -305,52 +304,53 @@ class MCMC(Scene):
                 
         
         self.wait(0.5)
-        
-        # ## 9. Restore chain and dots to original appearance ---------------
-        # Bring back the original chain opacity and reset all dot scaling/coloring
-        restore_animations = [chain_path.animate.set_stroke(opacity=0.8)]
-        
-        # Reset all highlighted dots to uniform appearance
-        for dot in highlight_dots:
-            # Calculate the current scale factor and reset to original size
-            current_height = dot.get_height()
-            original_height = 0.3 * 0.8  # Original dot radius * 2
-            scale_factor = original_height / current_height if current_height > 0 else 1.0
-            restore_animations.append(dot.animate.set_fill(TBLUE, opacity=0.6).scale(scale_factor))
-        
-        # Also reset any other dots that might have been affected
-        for dot in self.sample_dots:
-            if dot not in highlight_dots:
-                restore_animations.append(dot.animate.set_fill(TBLUE, opacity=0.6))
-        
-        # Remove the trace chain since we're going back to the original
-        self.remove(trace_chain)
-        
-        self.play(*restore_animations, run_time=1.0)
-        
-        self.wait(1)
-        
-        # ## 10. Collapse the chain back down -----------------------------------
+
+        # endregion
+    
+        # region 8. Collapse the chain back down -----------------------------------
         def update_chain_collapse(mob, alpha):
             """Update function for collapsing the chain back to the axis"""
             # alpha goes from 0 to 1, but we want pull_factor to go from 1 to 0
             pull_factor = 1.0 - alpha
             new_points = get_chain_points(pull_factor)
             mob.set_points_as_corners(new_points)
-            # Don't move the dots during collapse - they should return to axis positions
+            
+            # Move the dots to follow the collapsing chain
+            for i, dot in enumerate(self.sample_dots):
+                dot.move_to(new_points[i])
         
-        # First move dots back to their axis positions
-        axis_animations = []
+        # First reset all highlighted dots back to normal appearance but keep them in extended positions
+        reset_animations = []
+        for dot in highlight_dots:
+            # Reset any scaling and color back to normal but don't move them yet
+            current_height = dot.get_height()
+            original_height = 0.2  # Original dot radius * 2 (radius was 0.1)
+            scale_factor = original_height / current_height if current_height > 0 else 1.0
+            reset_animations.append(dot.animate.set_fill(TBLUE, opacity=0.6).scale(scale_factor))
+        
+        # Also reset any other dots that might have been affected
+        for dot in self.sample_dots:
+            if dot not in highlight_dots:
+                reset_animations.append(dot.animate.set_fill(TBLUE, opacity=0.6))
+        
+        # Make sure we're using the right chain for collapse - remove trace_chain and use original
+        self.remove(trace_chain)
+        
+        # Reset the original chain to full extension and move dots to match
+        full_extension_points = get_chain_points(1.0)
+        chain_path.set_points_as_corners(full_extension_points)
+        chain_path.set_stroke(opacity=0.8)
+        
+        # Move all dots to their full extension positions
         for i, dot in enumerate(self.sample_dots):
-            axis_point = dot.get_center().copy()
-            # Remove any extension to get back to axis
-            if i < len(self.sample_dots) - 1:  # All except the last dot
-                axis_point[0] = self.sample_dots[-1].get_center()[0]  # Use last dot's x position (on axis)
-            axis_animations.append(dot.animate.move_to(axis_point))
+            dot.move_to(full_extension_points[i])
         
-        # Animate dots returning to axis and chain collapsing
+        # Play the reset animations (appearance only, no movement since dots are already positioned)
+        if reset_animations:
+            self.play(*reset_animations, run_time=0.5)
+        
+        # Animate chain collapsing with dots following along
         self.play(
-            *axis_animations,
             UpdateFromAlphaFunc(chain_path, update_chain_collapse),
             FadeOut(markov_chain_text),  # Fade out "Markov Chain"
             histogram_bars.animate.set_fill(opacity=0.3).set_stroke(opacity=1),
@@ -360,3 +360,141 @@ class MCMC(Scene):
         )
         
         self.wait(3)
+
+        # endregion
+
+        # region 9. Clean up -----------------------------------
+        # Fade out all dots and the chain and the histogram and the pdf curve
+        fade_animations = [chain_path.animate.set_stroke(opacity=0.0)]
+        for dot in self.sample_dots:
+            fade_animations.append(dot.animate.set_fill(opacity=0.0))
+        self.play(*fade_animations, 
+                  histogram_bars.animate.set_fill(opacity=0.0).set_stroke(opacity=0.0),
+                  pdf_curve.animate.set_stroke(opacity=0.0),run_time=1.0)
+        
+        # endregion
+
+        # region 10. Show the first iteration of chain creation -----------------------------------
+        # Show the first dot in the chain
+        first_dot = self.sample_dots[-1]
+        self.play(first_dot.animate.set_fill(TBLUE, opacity=0.8), run_time=1)
+
+        current_x = sample_xs[-1]  # First sample position (current state)
+        
+        # Add label for the blue point (current state x)
+        x_label = Tex(r"x", font_size=36)
+        x_label.set_color(TBLUE)
+        x_label.next_to(first_dot, DOWN, buff=0.15)
+        x_label.align_to(ax.c2p(0, -0.05), DOWN)  # Align to consistent baseline
+        self.play(Write(x_label), run_time=0.5)
+
+        # Show the creation of the Gaussian kernel with label as Kernel
+        gaussian_kernel = ax.get_graph(
+            lambda x: np.exp(-(x-current_x)**2 / 2) / np.sqrt(2 * np.pi),
+            color=TGREEN,
+            x_range=[current_x-3, current_x+3]
+        )
+        gaussian_kernel_label = Text("Kernel", font="Gill Sans", font_size=36)
+        gaussian_kernel_label.set_color(TGREEN)
+        gaussian_kernel_label.next_to(gaussian_kernel, UP, buff=0.2)
+
+        self.play(
+            ShowCreation(gaussian_kernel),
+            Write(gaussian_kernel_label),
+            run_time=2)
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 11. Animate sampling from the kernel with density-based movement --------
+        target_x = sample_xs[-2]   # Second sample position (target from chain)
+        
+        # Create the sampling dot that will move along the kernel
+        sampling_dot = Dot(radius=0.1, fill_color=TGREEN, fill_opacity=1.0)
+        sampling_dot.move_to(ax.c2p(current_x - 3.0, 0))  # Start at current_x - 3
+        
+        # Show the sampling dot appearing at current_x - 3
+        self.play(FadeIn(sampling_dot, scale=0.5), run_time=0.05)
+        
+        # Define the kernel function for speed calculation
+        def kernel_pdf(x):
+            return np.exp(-(x - current_x)**2 / 2) / np.sqrt(2 * np.pi)
+        
+        # Create the movement animation with density-based speed
+        def update_sampling_dot(mob, alpha):
+            # Movement parameters
+            oscillation_range = 3.0  # Oscillate ±3 around current_x
+            total_oscillations = 2.5  # 2 full oscillations + 0.5 to stop at target
+            
+            # Calculate which phase we're in
+            phase = alpha * total_oscillations
+            
+            if phase < 2.0:  # First two complete oscillations
+                # Complete oscillations between current_x-3 and current_x+3
+                # Use cosine starting at -1 (which gives us current_x-3) for continuity
+                oscillation_alpha = phase / 2.0  # Maps to 0-1 for two oscillations
+                # Start at current_x-3 (cos(0) = 1, so we use -cos to start at -1)
+                x_position = current_x - oscillation_range * np.cos(oscillation_alpha * 2 * PI)
+                
+            else:  # Third partial oscillation - stop at target
+                # Start from current_x-3 and move towards target_x
+                remaining_phase = phase - 2.0  # 0 to 0.5
+                progress_to_target = remaining_phase / 0.5  # Maps to 0-1
+                
+                # Start at current_x-3 and interpolate to target_x
+                start_x = current_x - oscillation_range
+                x_position = start_x + (target_x - start_x) * progress_to_target
+            
+            # Apply density-based speed modulation
+            density = kernel_pdf(x_position)
+            max_density = kernel_pdf(current_x)
+            
+            # Create a speed factor (higher density = slower movement)
+            if max_density > 0:
+                density_factor = density / max_density
+                # Slow down in high-density regions (reduced intensity)
+                speed_multiplier = 0.6 + 0.4 * (1 - density_factor)  # Speed varies from 0.6 to 1.0
+            else:
+                speed_multiplier = 1.0
+            
+            # Apply consistent speed modulation for all phases
+            effective_x = x_position * speed_multiplier + x_position * (1 - speed_multiplier) * 0.3
+            
+            mob.move_to(ax.c2p(effective_x, 0))
+        
+        # Animate the density-based sampling movement
+        self.play(
+            UpdateFromAlphaFunc(sampling_dot, update_sampling_dot),
+            run_time=3.0,  # Faster duration while still showing the oscillations clearly
+            rate_func=smooth
+        )
+
+        # Add label for the green point (proposed state x') after it reaches final position
+        x_prime_label = Tex(r"x'", font_size=36)
+        x_prime_label.set_color(TGREEN)
+        x_prime_label.next_to(sampling_dot, DOWN, buff=0.15)
+        x_prime_label.align_to(ax.c2p(0, -0.05), DOWN)  # Align to same baseline as x label
+        self.play(Write(x_prime_label), run_time=0.3)
+
+        self.wait(0.5)
+
+        self.play(
+            FadeOut(gaussian_kernel, run_time=0.5),
+            FadeOut(gaussian_kernel_label, run_time=0.5),
+        )
+        
+        # endregion
+
+        # region 12. Draw target density back on the screen -------------------
+        pdf_curve = ax.get_graph(
+            lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
+            0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
+            color=WHITE
+        )
+        self.plot_group.add(pdf_curve)
+    
+        self.play(ShowCreation(pdf_curve), run_time=2)
+
+        # endregion
+        
