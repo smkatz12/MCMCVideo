@@ -497,4 +497,564 @@ class MCMC(Scene):
         self.play(ShowCreation(pdf_curve), run_time=2)
 
         # endregion
+
+        # region 13. Draw lines from x-axis points to function values and add labels --------
+        # Define the target PDF function for evaluation
+        def target_pdf(x):
+            if NORMAL:
+                return np.exp(-x**2 / 2) / np.sqrt(2 * np.pi)
+            else:
+                return 0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x))
+        
+        # Get the current positions and function values
+        x_pos = current_x
+        x_prime_pos = target_x
+        f_x_value = target_pdf(x_pos)
+        f_x_prime_value = target_pdf(x_prime_pos)
+        
+        # Create vertical lines from x-axis to function
+        x_line = Line(
+            ax.c2p(x_pos, 0),
+            ax.c2p(x_pos, f_x_value),
+            color=TBLUE,
+            stroke_width=3
+        )
+        
+        x_prime_line = Line(
+            ax.c2p(x_prime_pos, 0),
+            ax.c2p(x_prime_pos, f_x_prime_value),
+            color=TGREEN,
+            stroke_width=3
+        )
+        
+        # Animate drawing both lines simultaneously
+        self.play(
+            ShowCreation(x_line),
+            ShowCreation(x_prime_line),
+            run_time=1.5
+        )
+        
+        # Create function value labels
+        f_x_label = Tex(f"f(x) = {f_x_value:.2f}", font_size=28)
+        f_x_label.set_color(TBLUE)
+        f_x_label.next_to(ax.c2p(x_pos, f_x_value), UP, buff=0.1)
+        
+        f_x_prime_label = Tex(f"f(x') = {f_x_prime_value:.2f}", font_size=28)
+        f_x_prime_label.set_color(TGREEN)
+        f_x_prime_label.next_to(ax.c2p(x_prime_pos, f_x_prime_value), UP, buff=0.1)
+        
+        # Create dots at the function value points
+        f_x_dot = Dot(ax.c2p(x_pos, f_x_value), radius=0.08, fill_color=TBLUE, fill_opacity=1.0)
+        f_x_prime_dot = Dot(ax.c2p(x_prime_pos, f_x_prime_value), radius=0.08, fill_color=TGREEN, fill_opacity=1.0)
+        
+        # Animate adding the labels and dots simultaneously
+        self.play(
+            Write(f_x_label),
+            Write(f_x_prime_label),
+            FadeIn(f_x_dot, scale=0.5),
+            FadeIn(f_x_prime_dot, scale=0.5),
+            pdf_curve.animate.set_stroke(opacity=0.3),  # Fade the function curve
+            run_time=1.0
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 14. Show Chain Creation Rules --------
+        # Create the rules box in the upper left corner
+        rules_box = Rectangle(
+            width=3.0,
+            height=3.0,
+            fill_color=BLACK,
+            fill_opacity=0.8,
+            stroke_color=WHITE,
+            stroke_width=2
+        )
+        rules_box.to_edge(LEFT, buff=0.3).to_edge(UP, buff=0.3)
+        
+        # Create the title with slightly more buffer
+        rules_title = Text("Chain Creation Rules", font="Gill Sans", font_size=24)
+        rules_title.set_color(WHITE)
+        rules_title.next_to(rules_box.get_top(), DOWN, buff=0.15)
+        
+        # Create rule 1 (currently applicable) with indented action
+        rule1_condition = Tex(r"\text{If } f(x') > f(x):", font_size=20)
+        rule1_condition.set_color(WHITE)
+        
+        rule1_action = Tex(r"\text{Accept } x'", font_size=20)
+        rule1_action.set_color(TGREEN)
+        
+        # Arrange with left alignment and indent the action
+        rule1 = VGroup(rule1_condition, rule1_action).arrange(DOWN, buff=0.1, aligned_edge=LEFT)
+        rule1_action.shift(RIGHT * 0.3)  # Indent the action
+        rule1.next_to(rules_title, DOWN, buff=0.3).align_to(rules_box.get_left(), LEFT).shift(RIGHT * 0.2)
+        
+        # Create placeholder for rule 2 (to be shown later) with indented action
+        rule2_condition = Tex(r"\text{If } f(x') < f(x):", font_size=20)
+        rule2_condition.set_color(WHITE)
+        
+        rule2_action = Tex(r"\text{Accept with prob. } \frac{f(x')}{f(x)}", font_size=18)
+        rule2_action.set_color(YELLOW)
+        
+        # Arrange with left alignment and indent the action
+        rule2 = VGroup(rule2_condition, rule2_action).arrange(DOWN, buff=0.1, aligned_edge=LEFT)
+        rule2_action.shift(RIGHT * 0.3)  # Indent the action
+        rule2.next_to(rule1, DOWN, buff=0.3).align_to(rule1, LEFT)
+        
+        # Group everything together (no need to center since we're using manual positioning)
+        rules_content = VGroup(rules_title, rule1, rule2)
+        
+        # Show the box and title first
+        self.play(
+            FadeIn(rules_box),
+            Write(rules_title),
+            run_time=1.0
+        )
+        
+        # Since f(x') > f(x) in our case, show rule 1
+        if f_x_prime_value > f_x_value:
+            # Highlight that this rule applies
+            self.play(
+                Write(rule1_condition),
+                run_time=1.0
+            )
+            self.play(
+                Write(rule1_action),
+                run_time=1.0
+            )
+            
+            # Show a checkmark or highlight to indicate this rule is active
+            checkmark = Tex(r"\checkmark", font_size=24)
+            checkmark.set_color(TGREEN)
+            checkmark.next_to(rule1_action, RIGHT, buff=0.2)
+            self.play(FadeIn(checkmark, scale=0.5), run_time=0.5)
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 15. Accept the proposal and clean up --------
+        # Remove the vertical lines and function dots
+        self.play(
+            FadeOut(x_line),
+            FadeOut(x_prime_line),
+            FadeOut(f_x_label),
+            FadeOut(f_x_prime_label),
+            FadeOut(f_x_dot),
+            FadeOut(f_x_prime_dot),
+            FadeOut(x_prime_label),
+            pdf_curve.animate.set_stroke(opacity=0.0),
+            run_time=1.0
+        )
+        
+        # # Change the green sampling dot to blue since it's being accepted into the chain
+        # self.play(
+        #     sampling_dot.animate.set_fill(TBLUE, opacity=0.8),
+        #     pdf_curve.animate.set_stroke(opacity=0.0),
+        #     run_time=0.8
+        # )
+        
+        self.wait(0.5)
+
+        # endregion
+
+        # region 16. Add new point to the chain --------
+        # Calculate where the new dot should be positioned in the extended chain
+        # This simulates the chain expansion that happened earlier
+        # The new dot will be the second-to-last point (since the last point stays on axis)
+        
+        # Get the current chain configuration with the new point
+        # We need to add the sampling_dot as the new second point in the chain
+        extended_sample_dots = self.sample_dots + [sampling_dot]  # Add new dot to chain
+        
+        # Calculate the new chain positions (similar to get_chain_points but for the new configuration)
+        def get_new_chain_points(pull_factor=1.0):
+            """Get chain points including the new accepted sample"""
+            chain_points = []
+            total_dots = len(extended_sample_dots)
+            
+            for i, dot in enumerate(extended_sample_dots):
+                if i < len(self.sample_dots):
+                    # Use original positions for existing dots
+                    axis_point = original_axis_positions[i]
+                else:
+                    # New dot starts from its current position on the axis
+                    axis_point = dot.get_center()
+                
+                # Calculate extension - keep the final point (last sample) on the axis
+                if i == total_dots - 1:
+                    extension = 0.0  # Final point stays on axis
+                else:
+                    extension_factor = (total_dots - i - 1) / (total_dots - 1)
+                    extension = pull_factor * max_extension * extension_factor
+                
+                chain_point = axis_point + chain_direction * extension
+                chain_points.append(chain_point)
+            
+            return chain_points
+        
+        # Get the target position for the new dot
+        new_chain_points = get_new_chain_points(1.0)
+        new_dot_target = new_chain_points[-2]  # Second to last position (new dot)
+        # The first_dot stays where it is (on the axis) as the last point in the chain
+        
+        # Keep the same x-position but move to the chain y-position
+        current_position = sampling_dot.get_center()
+        target_position = np.array([current_position[0], new_dot_target[1], current_position[2]])
+
+        # Draw the connecting line between the two dots
+        chain_line = Line(first_dot.get_center(), target_position)
+        chain_line.set_stroke(TBLUE, width=3, opacity=0.8)
+        
+        # Move only the new dot to its chain position (same x, new y)
+        self.play(
+            sampling_dot.animate.move_to(target_position).set_fill(TBLUE, opacity=0.8),
+            x_label.animate.next_to(target_position, DOWN, buff=0.05).align_to(ax.c2p(0, -0.05), DOWN),
+            ShowCreation(chain_line),
+            run_time=1.5
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 17. Repeat the process for the next sample --------
+        # Now we'll repeat the sampling process, starting from the current state (sampling_dot)
+        # and moving to the next sample in the chain
+        
+        # Update the current and target positions for the next iteration
+        prev_x = target_x  # The sampling_dot position becomes the new current state
+        next_target_x = sample_xs[-3]  # Third sample position (next target from chain)
+        
+        # Get the position of the current chain point for the temporary x-axis
+        current_chain_pos = sampling_dot.get_center()
+        current_chain_y = current_chain_pos[1]
+        
+        # Create a temporary x-axis aligned with the current chain point
+        # Use screen coordinates directly
+        left_point = ax.c2p(-4, 0)
+        right_point = ax.c2p(4, 0)
+        left_point[1] = current_chain_y  # Set y to match chain point
+        right_point[1] = current_chain_y  # Set y to match chain point
+        
+        temp_x_axis = Line(
+            left_point,
+            right_point,
+            color=WHITE,
+            stroke_width=2,
+            stroke_opacity=0.3
+        )
+        
+        # Show the temporary x-axis
+        self.play(ShowCreation(temp_x_axis), run_time=1.0)
+        
+        # Fade the previous iteration elements to lower opacity
+        self.play(
+            first_dot.animate.set_fill(opacity=0.3),
+            chain_line.animate.set_stroke(opacity=0.3),
+            run_time=0.5
+        )
+        
+        # Show the creation of a new Gaussian kernel centered at the new current state
+        # But position it relative to the temporary axis
+        new_gaussian_kernel = ax.get_graph(
+            lambda x: np.exp(-(x-prev_x)**2 / 2) / np.sqrt(2 * np.pi),
+            color=TGREEN,
+            x_range=[prev_x-3, prev_x+3]
+        )
+        # Shift the kernel to align with the temporary axis
+        kernel_shift = current_chain_y - ax.c2p(0, 0)[1]  # Calculate shift from main axis
+        new_gaussian_kernel.shift(UP * kernel_shift)
+        
+        new_gaussian_kernel_label = Text("Kernel", font="Gill Sans", font_size=36)
+        new_gaussian_kernel_label.set_color(TGREEN)
+        new_gaussian_kernel_label.next_to(new_gaussian_kernel, UP, buff=0.2)
+
+        self.play(
+            ShowCreation(new_gaussian_kernel),
+            Write(new_gaussian_kernel_label),
+            run_time=2
+        )
+        
+        self.wait(1)
+
+        # Create a new sampling dot for the second iteration on the temporary axis
+        new_sampling_dot = Dot(radius=0.1, fill_color=TGREEN, fill_opacity=1.0)
+        # Position it on the temporary x-axis at prev_x - 3
+        temp_axis_start_pos = ax.c2p(prev_x - 3.0, 0)
+        temp_axis_start_pos[1] = current_chain_y  # Align with temporary axis
+        new_sampling_dot.move_to(temp_axis_start_pos)
+        
+        # Show the new sampling dot appearing
+        self.play(FadeIn(new_sampling_dot, scale=0.5), run_time=0.5)
+        
+        # Define the new kernel function for speed calculation
+        def new_kernel_pdf(x):
+            return np.exp(-(x - prev_x)**2 / 2) / np.sqrt(2 * np.pi)
+        
+        # Create the movement animation for the second iteration along the temporary axis
+        def update_new_sampling_dot(mob, alpha):
+            # Movement parameters (same as before)
+            oscillation_range = 3.0
+            total_oscillations = 2.5
+            
+            # Calculate which phase we're in
+            phase = alpha * total_oscillations
+            
+            if phase < 2.0:  # First two complete oscillations
+                oscillation_alpha = phase / 2.0
+                x_position = prev_x - oscillation_range * np.cos(oscillation_alpha * 2 * PI)
+            else:  # Third partial oscillation - stop at target
+                remaining_phase = phase - 2.0
+                progress_to_target = remaining_phase / 0.5
+                start_x = prev_x - oscillation_range
+                x_position = start_x + (next_target_x - start_x) * progress_to_target
+            
+            # Apply density-based speed modulation
+            density = new_kernel_pdf(x_position)
+            max_density = new_kernel_pdf(prev_x)
+            
+            if max_density > 0:
+                density_factor = density / max_density
+                speed_multiplier = 0.6 + 0.4 * (1 - density_factor)
+            else:
+                speed_multiplier = 1.0
+            
+            effective_x = x_position * speed_multiplier + x_position * (1 - speed_multiplier) * 0.3
+            # Move along the temporary axis (same y-coordinate as current chain point)
+            temp_pos = ax.c2p(effective_x, 0)
+            temp_pos[1] = current_chain_y
+            mob.move_to(temp_pos)
+        
+        # Animate the second sampling movement
+        self.play(
+            UpdateFromAlphaFunc(new_sampling_dot, update_new_sampling_dot),
+            run_time=3.0,
+            rate_func=smooth
+        )
+
+        # Add label for the new proposed state x' (not x'')
+        x_prime_label_new = Tex(r"x'", font_size=36)
+        x_prime_label_new.set_color(TGREEN)
+        x_prime_label_new.next_to(new_sampling_dot, DOWN, buff=0.15)
+        x_prime_label_new.align_to(ax.c2p(0, -0.05), DOWN)
+        self.play(Write(x_prime_label_new), run_time=0.3)
+
+        self.wait(0.5)
+
+        # Fade out the kernel for this iteration
+        self.play(
+            FadeOut(new_gaussian_kernel, run_time=0.5),
+            FadeOut(new_gaussian_kernel_label, run_time=0.5),
+        )
+
+        self.wait(0.5)
+
+        # endregion
+
+        # region 18. Show the target density again for function evaluation -------------------
+        # Show the target density again for function evaluation
+        # This time, shift it to align with the temporary x-axis
+        pdf_curve_new = ax.get_graph(
+            lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
+            0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
+            color=WHITE
+        )
+        # Shift the PDF curve to align with the temporary axis
+        pdf_shift = current_chain_y - ax.c2p(0, 0)[1]  # Calculate shift from main axis
+        pdf_curve_new.shift(UP * pdf_shift)
+        self.plot_group.add(pdf_curve_new)
+    
+        self.play(ShowCreation(pdf_curve_new), run_time=2)
+
+        # Define the target PDF function for evaluation (same as before)
+        def target_pdf_new(x):
+            if NORMAL:
+                return np.exp(-x**2 / 2) / np.sqrt(2 * np.pi)
+            else:
+                return 0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x))
+        
+        # Get the current positions and function values for the second iteration
+        x_pos_new = prev_x  # Current state position (from sampling_dot)
+        # Get the actual x-coordinate where the new_sampling_dot ended up
+        x_prime_pos_new = ax.p2c(new_sampling_dot.get_center())[0]  # Use actual position of new_sampling_dot
+        f_x_value_new = target_pdf_new(x_pos_new)
+        f_x_prime_value_new = target_pdf_new(x_prime_pos_new)
+        
+        # Create vertical lines from the chain points to function values
+        # For the current state (sampling_dot), draw from its chain position
+        x_line_new = Line(
+            sampling_dot.get_center(),  # Start from chain position
+            np.array([ax.c2p(x_pos_new, f_x_value_new)[0], current_chain_y + f_x_value_new * ax.y_axis.get_unit_size(), 0]),  # End at shifted function value
+            color=TBLUE,
+            stroke_width=3
+        )
+        
+        # For the proposed state, draw from the temporary axis level to function value
+        x_prime_line_new = Line(
+            new_sampling_dot.get_center(),  # Start from temporary axis position
+            np.array([ax.c2p(x_prime_pos_new, f_x_prime_value_new)[0], current_chain_y + f_x_prime_value_new * ax.y_axis.get_unit_size(), 0]),  # End at shifted function value
+            color=TGREEN,
+            stroke_width=3
+        )
+        
+        # Animate drawing both lines simultaneously
+        self.play(
+            ShowCreation(x_line_new),
+            ShowCreation(x_prime_line_new),
+            run_time=1.5
+        )
+        
+        # Create function value labels (as before)
+        f_x_label_new = Tex(f"f(x) = {f_x_value_new:.2f}", font_size=28)
+        f_x_label_new.set_color(TBLUE)
+        f_x_label_new.next_to(np.array([ax.c2p(x_pos_new, f_x_value_new)[0], current_chain_y + f_x_value_new * ax.y_axis.get_unit_size(), 0]), UP, buff=0.1)
+        
+        f_x_prime_label_new = Tex(f"f(x') = {f_x_prime_value_new:.2f}", font_size=28)
+        f_x_prime_label_new.set_color(TGREEN)
+        f_x_prime_label_new.next_to(np.array([ax.c2p(x_prime_pos_new, f_x_prime_value_new)[0], current_chain_y + f_x_prime_value_new * ax.y_axis.get_unit_size(), 0]), UP, buff=0.1)
+        
+        # Create dots at the function value points
+        f_x_dot_new = Dot(np.array([ax.c2p(x_pos_new, f_x_value_new)[0], current_chain_y + f_x_value_new * ax.y_axis.get_unit_size(), 0]), radius=0.08, fill_color=TBLUE, fill_opacity=1.0)
+        f_x_prime_dot_new = Dot(np.array([ax.c2p(x_prime_pos_new, f_x_prime_value_new)[0], current_chain_y + f_x_prime_value_new * ax.y_axis.get_unit_size(), 0]), radius=0.08, fill_color=TGREEN, fill_opacity=1.0)
+        
+        # Animate adding the labels and dots simultaneously (as before)
+        self.play(
+            Write(f_x_label_new),
+            Write(f_x_prime_label_new),
+            FadeIn(f_x_dot_new, scale=0.5),
+            FadeIn(f_x_prime_dot_new, scale=0.5),
+            pdf_curve_new.animate.set_stroke(opacity=0.3),  # Fade the function curve
+            run_time=1.0
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 19. Update the rules box with the new function values and checkmark --------
+        # Update the rules box to show which rule applies for this iteration
+        # Check which rule applies and show the appropriate checkmark
+        if f_x_prime_value_new > f_x_value_new:
+            # Rule 1 applies (accept)
+            # The rule 1 should already be visible, just add/update the checkmark
+            # Remove any existing checkmark first, then add new one
+            new_checkmark = Tex(r"\checkmark", font_size=24)
+            new_checkmark.set_color(TGREEN)
+            new_checkmark.next_to(rule1_action, RIGHT, buff=0.2)
+            self.play(FadeIn(new_checkmark, scale=0.5), run_time=0.5)
+            
+        else:
+            # Rule 2 applies (probabilistic acceptance) - show rule 2
+            self.play(
+                Write(rule2_condition),
+                run_time=1.0
+            )
+            self.play(
+                Write(rule2_action),
+                run_time=1.0
+            )
+            
+            # Show a checkmark to indicate this rule is active
+            new_checkmark2 = Tex(r"\checkmark", font_size=24)
+            new_checkmark2.set_color(YELLOW)
+            new_checkmark2.next_to(rule2_action, RIGHT, buff=0.2)
+            self.play(FadeIn(new_checkmark2, scale=0.5), run_time=0.5)
+            
+            # After showing rule 2, move the function values to the rules box for calculation
+            ratio_value = f_x_prime_value_new / f_x_value_new if f_x_value_new != 0 else float('inf')
+            
+            # Position the calculation aligned with the rule2_action text (yellow text)
+            calc_base_position = rule2_action.get_left() + DOWN * 0.7
+            
+            # Create the calculation components for vertical fraction (smaller size)
+            fraction_line = Line(LEFT * 0.3, RIGHT * 0.3, stroke_width=1, color=GREY)
+            equals = Tex("=", font_size=18, color=GREY)
+            result = Tex(f"{ratio_value:.2f}", font_size=18, color=GREY)
+            
+            # Position the fraction components vertically
+            fraction_line.move_to(calc_base_position)
+            f_x_prime_target = fraction_line.get_center() + UP * 0.125  # Numerator above line
+            f_x_target = fraction_line.get_center() + DOWN * 0.125      # Denominator below line
+            
+            # Position equals and result to the right of the fraction
+            equals.next_to(fraction_line, RIGHT, buff=0.1)
+            result.next_to(equals, RIGHT, buff=0.1)
+            
+            # Animate the numbers from the labels moving to the calculation
+            f_x_number_part = f_x_label_new.get_part_by_tex(f"{f_x_value_new:.2f}")
+            f_x_prime_number_part = f_x_prime_label_new.get_part_by_tex(f"{f_x_prime_value_new:.2f}")
+            
+            self.play(
+                f_x_prime_number_part.animate.move_to(f_x_prime_target).set_color(GREY).scale(18/28),
+                f_x_number_part.animate.move_to(f_x_target).set_color(GREY).scale(18/28),
+                FadeOut(f_x_label_new.get_parts_by_tex("f(x) =")),
+                FadeOut(f_x_prime_label_new.get_parts_by_tex("f(x') =")),
+                run_time=1.5
+            )
+            
+            # Now add the rest of the calculation elements
+            self.play(
+                FadeIn(fraction_line),
+                FadeIn(equals),
+                FadeIn(result),
+                run_time=1.0
+            )
+            
+            self.wait(1)
+
+        # endregion
+
+        # region 20. Show random number generation and acceptance/rejection based on ratio
+        # Create a small box in the bottom right of the rules box
+        random_box = Rectangle(
+            width=0.6,
+            height=0.5,
+            fill_color=BLACK,
+            fill_opacity=0.9,
+            stroke_color=WHITE,
+            stroke_width=1
+        )
+        # Position it in the bottom right corner of the rules box
+        random_box.move_to(rules_box.get_bottom() + UP * 0.35 + RIGHT * 0.5)
+        
+        # Position the random number display in the center of the small box
+        random_number_display = Tex("0.50", font_size=18, color=WHITE)
+        random_number_display.move_to(random_box.get_center())
+        
+        # Show the random number box
+        self.play(
+            FadeIn(random_box),
+            FadeIn(random_number_display),
+            run_time=0.3
+        )
+        
+        # Animate cycling through random numbers
+        import random
+        random.seed(42)  # For consistent results
+        
+        # Generate a series of random numbers, ending with one less than 0.23
+        random_numbers = []
+        for _ in range(6):  # Show 6 random numbers (fewer for faster animation)
+            random_numbers.append(random.uniform(0.25, 0.99))  # Numbers above 0.23
+        random_numbers.append(random.uniform(0.05, 0.22))  # Final number below 0.23
+        
+        # Cycle through the numbers quickly
+        for i, num in enumerate(random_numbers):
+            new_display = Tex(f"{num:.2f}", font_size=18, color=WHITE)
+            new_display.move_to(random_number_display.get_center())
+            
+            if i < len(random_numbers) - 1:
+                # Very quick transitions for intermediate numbers
+                self.play(Transform(random_number_display, new_display), run_time=0.08)
+            else:
+                # Slower for the final number, and make it green if it's less than ratio_value
+                final_color = TGREEN if num < ratio_value else TRED
+                new_display.set_color(final_color)
+                self.play(Transform(random_number_display, new_display), run_time=0.3)
+        
+        self.wait(2)
+
+        # endregion
         
