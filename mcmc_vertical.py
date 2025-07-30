@@ -565,7 +565,7 @@ class MCMC(Scene):
         # Create the rules box in the upper left corner
         rules_box = Rectangle(
             width=3.0,
-            height=3.0,
+            height=2.35,
             fill_color=BLACK,
             fill_opacity=0.8,
             stroke_color=WHITE,
@@ -583,7 +583,8 @@ class MCMC(Scene):
         rule1_condition.set_color(WHITE)
         
         rule1_action = Tex(r"\text{Accept } x'", font_size=20)
-        rule1_action.set_color(TGREEN)
+        # rule1_action.set_color(TGREEN)
+        rule1_action.set_color(WHITE)
         
         # Arrange with left alignment and indent the action
         rule1 = VGroup(rule1_condition, rule1_action).arrange(DOWN, buff=0.1, aligned_edge=LEFT)
@@ -595,7 +596,8 @@ class MCMC(Scene):
         rule2_condition.set_color(WHITE)
         
         rule2_action = Tex(r"\text{Accept with prob. } \frac{f(x')}{f(x)}", font_size=18)
-        rule2_action.set_color(YELLOW)
+        # rule2_action.set_color(YELLOW)
+        rule2_action.set_color(WHITE)
         
         # Arrange with left alignment and indent the action
         rule2 = VGroup(rule2_condition, rule2_action).arrange(DOWN, buff=0.1, aligned_edge=LEFT)
@@ -623,12 +625,6 @@ class MCMC(Scene):
                 Write(rule1_action),
                 run_time=1.0
             )
-            
-            # Show a checkmark or highlight to indicate this rule is active
-            checkmark = Tex(r"\checkmark", font_size=24)
-            checkmark.set_color(TGREEN)
-            checkmark.next_to(rule1_action, RIGHT, buff=0.2)
-            self.play(FadeIn(checkmark, scale=0.5), run_time=0.5)
         
         self.wait(1)
 
@@ -934,127 +930,271 @@ class MCMC(Scene):
         # endregion
 
         # region 19. Update the rules box with the new function values and checkmark --------
-        # Update the rules box to show which rule applies for this iteration
-        # Check which rule applies and show the appropriate checkmark
-        if f_x_prime_value_new > f_x_value_new:
-            # Rule 1 applies (accept)
-            # The rule 1 should already be visible, just add/update the checkmark
-            # Remove any existing checkmark first, then add new one
-            new_checkmark = Tex(r"\checkmark", font_size=24)
-            new_checkmark.set_color(TGREEN)
-            new_checkmark.next_to(rule1_action, RIGHT, buff=0.2)
-            self.play(FadeIn(new_checkmark, scale=0.5), run_time=0.5)
-            
-        else:
-            # Rule 2 applies (probabilistic acceptance) - show rule 2
-            self.play(
-                Write(rule2_condition),
-                run_time=1.0
-            )
-            self.play(
-                Write(rule2_action),
-                run_time=1.0
-            )
-            
-            # Show a checkmark to indicate this rule is active
-            new_checkmark2 = Tex(r"\checkmark", font_size=24)
-            new_checkmark2.set_color(YELLOW)
-            new_checkmark2.next_to(rule2_action, RIGHT, buff=0.2)
-            self.play(FadeIn(new_checkmark2, scale=0.5), run_time=0.5)
-            
-            # After showing rule 2, move the function values to the rules box for calculation
-            ratio_value = f_x_prime_value_new / f_x_value_new if f_x_value_new != 0 else float('inf')
-            
-            # Position the calculation aligned with the rule2_action text (yellow text)
-            calc_base_position = rule2_action.get_left() + DOWN * 0.7
-            
-            # Create the calculation components for vertical fraction (smaller size)
-            fraction_line = Line(LEFT * 0.3, RIGHT * 0.3, stroke_width=1, color=GREY)
-            equals = Tex("=", font_size=18, color=GREY)
-            result = Tex(f"{ratio_value:.2f}", font_size=18, color=GREY)
-            
-            # Position the fraction components vertically
-            fraction_line.move_to(calc_base_position)
-            f_x_prime_target = fraction_line.get_center() + UP * 0.125  # Numerator above line
-            f_x_target = fraction_line.get_center() + DOWN * 0.125      # Denominator below line
-            
-            # Position equals and result to the right of the fraction
-            equals.next_to(fraction_line, RIGHT, buff=0.1)
-            result.next_to(equals, RIGHT, buff=0.1)
-            
-            # Animate the numbers from the labels moving to the calculation
-            f_x_number_part = f_x_label_new.get_part_by_tex(f"{f_x_value_new:.2f}")
-            f_x_prime_number_part = f_x_prime_label_new.get_part_by_tex(f"{f_x_prime_value_new:.2f}")
-            
-            self.play(
-                f_x_prime_number_part.animate.move_to(f_x_prime_target).set_color(GREY).scale(18/28),
-                f_x_number_part.animate.move_to(f_x_target).set_color(GREY).scale(18/28),
-                FadeOut(f_x_label_new.get_parts_by_tex("f(x) =")),
-                FadeOut(f_x_prime_label_new.get_parts_by_tex("f(x') =")),
-                run_time=1.5
-            )
-            
-            # Now add the rest of the calculation elements
-            self.play(
-                FadeIn(fraction_line),
-                FadeIn(equals),
-                FadeIn(result),
-                run_time=1.0
-            )
-            
-            self.wait(1)
+        # Rule 2 applies (probabilistic acceptance) - show rule 2
+        self.play(
+            Write(rule2_condition),
+            run_time=1.0
+        )
+        self.play(
+            Write(rule2_action),
+            run_time=1.0
+        )
+        
+        # After showing rule 2, move the function values to the rules box for calculation
+        ratio_value = f_x_prime_value_new / f_x_value_new if f_x_value_new != 0 else float('inf')
+        
+        # Position the calculation aligned with the rule2_action text
+        calc_base_position = rule2_action.get_right() + RIGHT
+
+        # Create a duplicate of the f(x')/f(x) fraction from rule2_action
+        # Start it at the position of the fraction in rule2_action
+        fraction_in_rule = rule2_action.get_part_by_tex(r"\frac{f(x')}{f(x)}")
+        fraction_duplicate = Tex(r"\frac{f(x')}{f(x)}", font_size=18, color=WHITE)
+        fraction_duplicate.move_to(fraction_in_rule.get_center())
+
+        # Create the calculation components for vertical fraction (smaller size)
+        fraction_line = Line(LEFT * 0.3, RIGHT * 0.3, stroke_width=1, color=WHITE)
+        equals_1 = Tex("=", font_size=18, color=WHITE)
+        equals_2 = Tex("=", font_size=18, color=WHITE)
+        result = Tex(f"{ratio_value:.2f}", font_size=18, color=WHITE)
+        
+        # Calculate target positions for the calculation layout
+        fraction_target_pos = calc_base_position
+        
+        # Position equals_1 to the right of the target fraction position
+        equals_1.next_to(fraction_target_pos, RIGHT, buff=0.3)
+        
+        # Position the numeric fraction components after equals_1
+        fraction_line.next_to(equals_1, RIGHT, buff=0.1)
+        f_x_prime_target = fraction_line.get_center() + UP * 0.125  # Numerator above line
+        f_x_target = fraction_line.get_center() + DOWN * 0.125      # Denominator below line
+        
+        # Position equals_2 and result to the right of the numeric fraction
+        equals_2.next_to(fraction_line, RIGHT, buff=0.1)
+        result.next_to(equals_2, RIGHT, buff=0.1)
+        
+        # # First show the duplicate f(x')/f(x) appearing and then moving to calculation area
+        # self.play(
+        #     fraction_duplicate.animate.move_to(fraction_target_pos),
+        #     run_time=0.8
+        # )
+        
+        # Animate the numbers from the labels moving to the calculation
+        f_x_number_part = f_x_label_new.get_part_by_tex(f"{f_x_value_new:.2f}")
+        f_x_prime_number_part = f_x_prime_label_new.get_part_by_tex(f"{f_x_prime_value_new:.2f}")
+        
+        self.play(
+            fraction_duplicate.animate.move_to(fraction_target_pos),
+            f_x_prime_number_part.animate.move_to(f_x_prime_target).scale(18/28),
+            f_x_number_part.animate.move_to(f_x_target).scale(18/28),
+            FadeOut(f_x_label_new.get_parts_by_tex("f(x) =")),
+            FadeOut(f_x_prime_label_new.get_parts_by_tex("f(x') =")),
+            FadeIn(equals_1),
+            FadeIn(fraction_line),
+            run_time=1.5
+        )
+        
+        # Now add the rest of the calculation elements
+        self.play(
+            FadeIn(equals_2),
+            FadeIn(result),
+            run_time=1.0
+        )
+        
+        self.wait(1)
 
         # endregion
 
         # region 20. Show random number generation and acceptance/rejection based on ratio
-        # Create a small box in the bottom right of the rules box
-        random_box = Rectangle(
-            width=0.6,
-            height=0.5,
-            fill_color=BLACK,
-            fill_opacity=0.9,
-            stroke_color=WHITE,
-            stroke_width=1
-        )
-        # Position it in the bottom right corner of the rules box
-        random_box.move_to(rules_box.get_bottom() + UP * 0.35 + RIGHT * 0.5)
+        # Create a number line from 0 to 1 below the rules box
+        number_line_length = 3.0
+        number_line_start = rules_box.get_bottom() + UP * 1.5 + RIGHT * 2.0
+        number_line_end = number_line_start + RIGHT * number_line_length
         
-        # Position the random number display in the center of the small box
-        random_number_display = Tex("0.50", font_size=18, color=WHITE)
-        random_number_display.move_to(random_box.get_center())
+        # Create the number line
+        number_line = Line(number_line_start, number_line_end, color=WHITE, stroke_width=3)
         
-        # Show the random number box
+        # Create tick marks and labels for 0 and 1
+        tick_0 = Line(number_line_start + DOWN * 0.1, number_line_start + UP * 0.1, color=WHITE, stroke_width=2)
+        tick_1 = Line(number_line_end + DOWN * 0.1, number_line_end + UP * 0.1, color=WHITE, stroke_width=2)
+        
+        label_0 = Tex("0", font_size=20, color=WHITE)
+        label_0.next_to(tick_0, DOWN, buff=0.1)
+        
+        label_1 = Tex("1", font_size=20, color=WHITE)
+        label_1.next_to(tick_1, DOWN, buff=0.1)
+        
+        # Show the number line
         self.play(
-            FadeIn(random_box),
-            FadeIn(random_number_display),
-            run_time=0.3
+            ShowCreation(number_line),
+            ShowCreation(tick_0),
+            ShowCreation(tick_1),
+            Write(label_0),
+            Write(label_1),
+            run_time=1.0
         )
         
-        # Animate cycling through random numbers
+        # Calculate position for the ratio_value (0.23) on the number line
+        ratio_position = number_line_start + RIGHT * (ratio_value * number_line_length)
+        
+        # Create tick mark for ratio_value
+        tick_ratio = Line(ratio_position + DOWN * 0.15, ratio_position + UP * 0.15, color=WHITE, stroke_width=2)
+        
+        # Duplicate the ratio value from the calculation and move it to the number line
+        ratio_duplicate = result.copy()
+        
+        self.play(
+            ShowCreation(tick_ratio),
+            ratio_duplicate.animate.next_to(tick_ratio, DOWN, buff=0.1),
+            run_time=1.0
+        )
+        
+        # Create colored segments on the number line
+        # Green segment (accept region): from 0 to ratio_value
+        green_segment = Line(
+            number_line_start, 
+            ratio_position,
+            color=TGREEN,
+            stroke_width=8,
+            stroke_opacity=0.8
+        )
+        
+        # Red segment (reject region): from ratio_value to 1
+        red_segment = Line(
+            ratio_position,
+            number_line_end,
+            color=TBLUE,
+            stroke_width=8,
+            stroke_opacity=0.8
+        )
+        
+        # Show the colored segments
+        self.play(
+            ShowCreation(green_segment),
+            ShowCreation(red_segment),
+            run_time=1.0
+        )
+        
+        # Generate a random number that will be less than ratio_value for acceptance
         import random
-        random.seed(42)  # For consistent results
+        random.seed(42)
+        final_random_value = random.uniform(0.05, ratio_value - 0.02)  # Ensure it's less than ratio_value
         
-        # Generate a series of random numbers, ending with one less than 0.23
-        random_numbers = []
-        for _ in range(6):  # Show 6 random numbers (fewer for faster animation)
-            random_numbers.append(random.uniform(0.25, 0.99))  # Numbers above 0.23
-        random_numbers.append(random.uniform(0.05, 0.22))  # Final number below 0.23
+        # Create a dot that will move along the number line to show random sampling
+        random_number_dot = Dot(radius=0.08, fill_color=YELLOW, fill_opacity=1.0)
+        random_number_dot.move_to(number_line_start + UP * 0.3)  # Start above the number line at 0
         
-        # Cycle through the numbers quickly
-        for i, num in enumerate(random_numbers):
-            new_display = Tex(f"{num:.2f}", font_size=18, color=WHITE)
-            new_display.move_to(random_number_display.get_center())
-            
-            if i < len(random_numbers) - 1:
-                # Very quick transitions for intermediate numbers
-                self.play(Transform(random_number_display, new_display), run_time=0.08)
+        # Show the sampling dot
+        self.play(FadeIn(random_number_dot, scale=0.5), run_time=0.5)
+        
+        # Animate the dot moving randomly along the number line several times before settling
+        random_positions = []
+        for _ in range(12):  # Generate several random positions
+            random_positions.append(random.uniform(0.1, 0.9))
+        random_positions.append(final_random_value)  # End at our target value
+        
+        # Animate through the random positions
+        for i, pos in enumerate(random_positions):
+            target_pos = number_line_start + RIGHT * (pos * number_line_length) + UP * 0.3
+            if i < len(random_positions) - 1:
+                # Quick movements for intermediate positions
+                self.play(random_number_dot.animate.move_to(target_pos), run_time=0.1)
             else:
-                # Slower for the final number, and make it green if it's less than ratio_value
-                final_color = TGREEN if num < ratio_value else TRED
-                new_display.set_color(final_color)
-                self.play(Transform(random_number_display, new_display), run_time=0.3)
+                # Slower final movement
+                self.play(random_number_dot.animate.move_to(target_pos), run_time=0.3)
+        
+
+        
+        # Since the random number is less than ratio_value, change the dot to green to show acceptance
+        self.play(
+            random_number_dot.animate.set_fill(TGREEN, opacity=1.0),
+            run_time=0.5
+        )
+        
+        # Add "ACCEPT!" text
+        accept_result = Text("ACCEPT!", font="Gill Sans", font_size=24, color=TGREEN, weight=BOLD)
+        accept_result.next_to(random_number_dot, UP, buff=0.2)
+        
+        self.play(Write(accept_result), run_time=0.8)
         
         self.wait(2)
+
+        # endregion
+
+        # region 21. Accept the second proposal and add to chain --------
+        # Clean up the number line and function evaluation elements
+        self.play(
+            FadeOut(number_line),
+            FadeOut(tick_0),
+            FadeOut(tick_1),
+            FadeOut(label_0),
+            FadeOut(label_1),
+            FadeOut(tick_ratio),
+            FadeOut(ratio_duplicate),
+            FadeOut(green_segment),
+            FadeOut(red_segment),
+            FadeOut(random_number_dot),
+            FadeOut(accept_result),
+            FadeOut(x_line_new),
+            FadeOut(x_prime_line_new),
+            FadeOut(f_x_dot_new),
+            FadeOut(f_x_prime_dot_new),
+            FadeOut(x_prime_label_new),
+            FadeOut(temp_x_axis),
+            pdf_curve_new.animate.set_stroke(opacity=0.0),
+            run_time=1.0
+        )
+        
+        self.wait(0.5)
+
+        # Add the second accepted sample to the chain
+        # First, move new_sampling_dot to the axis level (same x, but y = 0)
+        new_sampling_dot_axis_pos = np.array([new_sampling_dot.get_center()[0], ax.c2p(0, 0)[1], new_sampling_dot.get_center()[2]])
+        
+        # Move the dot to axis level first
+        self.play(
+            new_sampling_dot.animate.move_to(new_sampling_dot_axis_pos),
+            run_time=0.8
+        )
+        
+        # Now calculate the new chain configuration with the additional dot
+        # Update the sample_dots list to include both new dots
+        self.sample_dots.append(sampling_dot)
+        self.sample_dots.append(new_sampling_dot)
+        
+        # Update original_axis_positions to include the new dots
+        original_axis_positions.append(sampling_dot.get_center().copy())  # Current position of first new dot
+        original_axis_positions.append(new_sampling_dot_axis_pos.copy())  # Axis position of second new dot
+        
+        # Use the existing get_chain_points function with the updated sample_dots
+        final_chain_points = get_chain_points(1.0)
+        
+        # Create new chain lines connecting all the dots
+        chain_lines = []
+        for i in range(len(self.sample_dots) - 1):
+            line = Line(
+                final_chain_points[i],
+                final_chain_points[i + 1],
+                color=TBLUE,
+                stroke_width=3,
+                opacity=0.8
+            )
+            chain_lines.append(line)
+        
+        # Move all dots to their final chain positions and create the full chain
+        dot_movements = []
+        for i, dot in enumerate(self.sample_dots):
+            dot_movements.append(dot.animate.move_to(final_chain_points[i]).set_fill(TBLUE, opacity=0.8))
+        
+        # Animate the chain extension
+        self.play(
+            *dot_movements,
+            *[ShowCreation(line) for line in chain_lines],
+            FadeOut(chain_line),  # Remove the old single chain line
+            run_time=2.0
+        )
+        
+        self.wait(1)
 
         # endregion
         
