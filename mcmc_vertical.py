@@ -1670,4 +1670,421 @@ class MCMC(Scene):
         self.wait(1)
 
         # endregion
+
+        # region 27. Rapidly sample the next 40 points in the chain --------
+        # We'll continue backwards through the chain, showing 40 more samples
+        # For each sample, we'll briefly highlight which rule applies
+        
+        self.play(FadeOut(x_label), run_time=0.5)  # Fade out the x label
+
+        # Get the remaining sample positions from the original chain
+        # We've already shown samples at indices -1, -2, -3, -4, so start from -5
+        remaining_samples = sample_xs[-45:-4]  # Get 41 more samples (we'll use 40 of them)
+        remaining_samples = remaining_samples[::-1]  # Reverse to go backwards through the chain
+        
+        # Track the current state for the rapid sampling
+        current_rapid_x = current_x_pos  # Start from the current x position
+        current_rapid_dot = rejected_iteration_dot  # Start from the current chain end
+        current_rapid_line = rejected_chain_line  # Start from the current chain line
+        
+        # Define the target PDF function for quick evaluation
+        def rapid_target_pdf(x):
+            if NORMAL:
+                return np.exp(-x**2 / 2) / np.sqrt(2 * np.pi)
+            else:
+                return 0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x))
+        
+        # Iterate through the next 40 samples
+        for i, next_x in enumerate(remaining_samples[:40]):
+            # Calculate function values
+            f_current = rapid_target_pdf(current_rapid_x)
+            f_next = rapid_target_pdf(next_x)
+            
+            # Determine which rule applies
+            if f_next > f_current:
+                # Rule 1 applies - certain acceptance
+                rule_to_highlight = rule1_condition
+                rule_action_to_highlight = rule1_action
+                rule_to_fade = rule2_condition
+                rule_action_to_fade = rule2_action
+            else:
+                # Rule 2 applies - probabilistic acceptance
+                rule_to_highlight = rule2_condition
+                rule_action_to_highlight = rule2_action
+                rule_to_fade = rule1_condition
+                rule_action_to_fade = rule1_action
+            
+            # Calculate where this new dot should be positioned in the chain
+            # Use the correct index from the original sample_xs array
+            # We're currently at index -4, and going backwards through the chain
+            current_sample_index = -5 - i  # -5, -6, -7, etc.
+            absolute_index = len(sample_xs) + current_sample_index  # Convert to positive index
+            
+            # Calculate extension for the new sample using the original chain logic
+            # Make sure we don't go below 0 for the absolute_index
+            if absolute_index <= 0 or absolute_index >= len(sample_xs) - 1:
+                extension = 0.0  # Points at the ends stay on axis
+            else:
+                extension_factor = (len(sample_xs) - absolute_index - 1) / (len(sample_xs) - 1)
+                extension = max_extension * extension_factor
+            
+            # Get the axis position for the new sample and apply the extension
+            new_sample_axis_pos = ax.c2p(next_x, 0)
+            new_sample_target = new_sample_axis_pos + chain_direction * extension
+            
+            # Create the new dot
+            new_rapid_dot = Dot(radius=0.1, fill_color=TBLUE, fill_opacity=0.8)
+            new_rapid_dot.move_to(new_sample_target)
+            
+            # Create the connecting line
+            new_rapid_line = Line(current_rapid_dot.get_center(), new_sample_target)
+            new_rapid_line.set_stroke(TBLUE, width=3, opacity=0.8)
+            
+            
+            # Animate: highlight rule, add dot and line, then fade rule back
+            animations_list = [
+                rule_to_highlight.animate.set_opacity(1.0),
+                rule_action_to_highlight.animate.set_opacity(1.0),
+                rule_to_fade.animate.set_opacity(0.3),
+                rule_action_to_fade.animate.set_opacity(0.3),
+                FadeIn(new_rapid_dot, scale=0.5),
+                ShowCreation(new_rapid_line),
+            ]
+            
+            # Run the animations quickly
+            self.play(*animations_list, run_time=0.1)
+            
+            # # Quickly fade the rule highlighting back to normal and remove label
+            # fade_animations = [
+            #     rule_to_highlight.animate.set_opacity(0.5),
+            #     rule_action_to_highlight.animate.set_opacity(0.5),
+            #     rule_to_fade.animate.set_opacity(0.5),
+            #     rule_action_to_fade.animate.set_opacity(0.5),
+            # ]
+            
+            # self.play(*fade_animations, run_time=0.15)
+            
+            # Update current state for next iteration
+            current_rapid_x = next_x
+            current_rapid_dot = new_rapid_dot
+            current_rapid_line = new_rapid_line
+        
+        # After all rapid sampling, return rules to normal state
+        self.play(
+            rule1_condition.animate.set_opacity(1.0),
+            rule1_action.animate.set_opacity(1.0),
+            rule2_condition.animate.set_opacity(1.0),
+            rule2_action.animate.set_opacity(1.0),
+            run_time=0.5
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 28. Add the rest of the chain and collapse back to x-axis --------
+        # First, add the rest of the chain (the remaining samples that weren't animated)
+        # We've animated up to sample index -45 (from the rapid sampling), so add the rest
+        remaining_chain_samples = sample_xs[:-45]  # All samples before the animated ones
+        
+        # Create dots and lines for the remaining chain using the same logic as region 6
+        remaining_dots = []
+        remaining_lines = []
+        
+        # Start from the beginning of the chain - create the first dot without a connection
+        prev_dot = None
+        
+        for i, x_val in enumerate(remaining_chain_samples):
+            # Calculate the extension for this sample
+            sample_index = i  # Index in the original sample_xs array
+            if sample_index == len(sample_xs) - 1:
+                extension = 0.0  # Final point stays on axis
+            else:
+                extension_factor = (len(sample_xs) - sample_index - 1) / (len(sample_xs) - 1)
+                extension = max_extension * extension_factor
+            
+            # Create the dot at its extended chain position
+            sample_axis_pos = ax.c2p(x_val, 0)
+            sample_target = sample_axis_pos + chain_direction * extension
+            
+            new_dot = Dot(radius=0.1, fill_color=TBLUE, fill_opacity=0.8)
+            new_dot.move_to(sample_target)
+            remaining_dots.append(new_dot)
+            
+            # Create the connecting line from the previous dot (if there is one)
+            if prev_dot is not None:
+                new_line = Line(prev_dot.get_center(), sample_target)
+                new_line.set_stroke(TBLUE, width=3, opacity=0.8)
+                remaining_lines.append(new_line)
+            
+            prev_dot = new_dot
+        
+        # Now connect the last remaining dot to the first dot of the animated chain
+        # We need to connect the last dot of remaining_dots (sample -45) to sample -44
+        # Sample -44 is represented by the last dot from rapid sampling (current_rapid_dot)
+        if remaining_dots:
+            connection_line = Line(remaining_dots[-1].get_center(), current_rapid_dot.get_center())
+            connection_line.set_stroke(TBLUE, width=3, opacity=0.8)
+            remaining_lines.append(connection_line)
+        
+        # Add all the remaining chain elements to the scene instantly (no animation needed since off-screen)
+        if remaining_dots:
+            self.add(*remaining_dots)
+        
+        if remaining_lines:
+            self.add(*remaining_lines)
+        
+        # Now collect all chain elements for collapse
+        chain_elements_to_collapse = []
+        chain_lines_to_remove = []
+        
+        # Add the main chain dots we know about
+        try:
+            chain_elements_to_collapse.append(first_dot)
+        except: pass
+        try:
+            chain_elements_to_collapse.append(sampling_dot)
+        except: pass
+        try:
+            chain_elements_to_collapse.append(new_sampling_dot)
+        except: pass
+        try:
+            chain_elements_to_collapse.append(rejected_iteration_dot)
+        except: pass
+        try:
+            chain_elements_to_collapse.append(current_rapid_dot)  # The last dot from rapid sampling
+        except: pass
+        
+        # Add all the remaining dots we just created
+        chain_elements_to_collapse.extend(remaining_dots)
+        
+        # Add the main chain lines
+        try:
+            chain_lines_to_remove.append(chain_line)
+        except: pass
+        try:
+            chain_lines_to_remove.append(new_chain_line)
+        except: pass
+        try:
+            chain_lines_to_remove.append(rejected_chain_line)
+        except: pass
+        try:
+            chain_lines_to_remove.append(current_rapid_line)  # The last line from rapid sampling
+        except: pass
+        
+        # Add all the remaining lines we just created
+        chain_lines_to_remove.extend(remaining_lines)
+        
+        # More aggressive search for all blue dots and lines in the scene
+        # This should capture all the rapid sampling elements that weren't explicitly tracked
+        x_axis_y = ax.c2p(0, 0)[1]
+        
+        for obj in self.mobjects:
+            if isinstance(obj, Dot) and obj not in chain_elements_to_collapse:
+                try:
+                    center = obj.get_center()
+                    # Check if it's positioned above the x-axis (part of the chain)
+                    if center[1] > x_axis_y + 0.05:  # Above the x-axis with small buffer
+                        fill_color = obj.get_fill_color()
+                        # More robust blue color check
+                        try:
+                            # Convert color to numpy array if it isn't already
+                            import numpy as np
+                            color_array = np.array(fill_color)
+                            if len(color_array) >= 3:
+                                # Check if blue component (index 2) is dominant
+                                if color_array[2] > max(color_array[0], color_array[1]) * 0.7:
+                                    chain_elements_to_collapse.append(obj)
+                        except:
+                            # Fallback: if it's above the axis, it's probably a chain element
+                            chain_elements_to_collapse.append(obj)
+                except Exception as e:
+                    pass
+            elif isinstance(obj, Line) and obj not in chain_lines_to_remove:
+                try:
+                    # Check if it's a line positioned above the x-axis
+                    line_center = (obj.get_start() + obj.get_end()) / 2
+                    if line_center[1] > x_axis_y + 0.05:  # Above the x-axis
+                        stroke_color = obj.get_stroke_color()
+                        # More robust blue color check
+                        try:
+                            import numpy as np
+                            color_array = np.array(stroke_color)
+                            if len(color_array) >= 3:
+                                # Check if blue component (index 2) is dominant
+                                if color_array[2] > max(color_array[0], color_array[1]) * 0.7:
+                                    chain_lines_to_remove.append(obj)
+                        except:
+                            # Fallback: if it's above the axis, it's probably a chain element
+                            chain_lines_to_remove.append(obj)
+                except Exception as e:
+                    pass
+        
+        # Create animations to move all dots to the x-axis and collapse lines
+        dot_animations = []
+        for i, dot in enumerate(chain_elements_to_collapse):
+            try:
+                # Get the x-coordinate of the current dot position
+                current_pos = dot.get_center()
+                # Move to x-axis at the same x-coordinate
+                target_pos = ax.c2p(ax.p2c(current_pos)[0], 0)
+                dot_animations.append(dot.animate.move_to(target_pos))
+            except Exception as e:
+                pass
+        
+        # Instead of fading lines, collapse them to the x-axis
+        line_collapse_animations = []
+        for i, line in enumerate(chain_lines_to_remove):
+            try:
+                # Get the start and end points of the line
+                start_pos = line.get_start()
+                end_pos = line.get_end()
+                
+                # Calculate target positions on the x-axis
+                start_x = ax.p2c(start_pos)[0]
+                end_x = ax.p2c(end_pos)[0]
+                target_start = ax.c2p(start_x, 0)
+                target_end = ax.c2p(end_x, 0)
+                
+                # Create a new line that will be the target for this line's animation
+                target_line = Line(target_start, target_end)
+                target_line.set_stroke(TBLUE, width=3, opacity=0.8)
+                
+                # Animate the line transforming to the collapsed position
+                line_collapse_animations.append(Transform(line, target_line))
+            except Exception as e:
+                pass
+        
+        # Execute the collapse animation (without fading out the rules box)
+        all_animations = dot_animations + line_collapse_animations
+        
+        if all_animations:
+            self.play(
+                *all_animations,
+                run_time=2.0,
+                rate_func=smooth
+            )
+        else:
+            # Fallback if no animations found
+            self.wait(2.0)
+        
+        # After the collapse, fade out the collapsed lines on the x-axis
+        collapsed_lines_to_remove = []
+        for line in chain_lines_to_remove:
+            try:
+                collapsed_lines_to_remove.append(line)
+            except:
+                pass
+        
+        if collapsed_lines_to_remove:
+            self.play(
+                *[FadeOut(line) for line in collapsed_lines_to_remove],
+                run_time=0.5
+            )
+        
+        # Update the sample_dots list to include all collapsed dots
+        self.sample_dots = chain_elements_to_collapse
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 29. Grow histogram bars from x-axis and redraw target density --------
+        # Now that all chain points are collapsed to the x-axis, grow histogram bars upward
+        # and redraw the target density curve
+        
+        # First, collect all the x-coordinates of the collapsed dots
+        sample_x_positions = []
+        for dot in self.sample_dots:
+            try:
+                x_coord = ax.p2c(dot.get_center())[0]
+                sample_x_positions.append(x_coord)
+            except:
+                pass
+        
+        # Create histogram data - use the same approach as regions 3-5
+        hist_range = (-4, 4)
+        bin_edges = np.linspace(hist_range[0], hist_range[1], 21)  # 20 equal-width bins
+        hist_counts, _ = np.histogram(sample_x_positions, bins=bin_edges)
+        
+        # Normalize the histogram to match the density scale (area = 1)
+        total_samples = len(sample_x_positions)
+        
+        # Create histogram bars using the same logic as region 5
+        histogram_bars = VGroup()
+        for j, c in enumerate(hist_counts):
+            if c == 0:
+                continue
+            x_left = bin_edges[j]
+            x_right = bin_edges[j + 1]
+            # Normalize the bar heights so that total area is 1
+            bar_width = x_right - x_left
+            bar_height = c / (bar_width * total_samples)
+            
+            # Create rectangle for histogram bar
+            bar = Rectangle(
+                width=bar_width * ax.x_axis.get_unit_size(),
+                height=bar_height * ax.y_axis.get_unit_size(),
+                fill_color=WHITE,
+                fill_opacity=0.3,
+                stroke_width=1,
+                stroke_color=WHITE
+            )
+            # Position the bar correctly
+            bar.move_to(ax.c2p((x_left + x_right) / 2, bar_height / 2))
+            histogram_bars.add(bar)
+        
+        # Animate the histogram bars growing from the x-axis
+        # Start with bars at zero height
+        for bar in histogram_bars:
+            bar.stretch_to_fit_height(0.01)  # Very small initial height
+            bar.align_to(ax.c2p(0, 0), DOWN)  # Align bottom to x-axis
+        
+        # Add bars to scene
+        self.add(histogram_bars)
+        
+        # Animate bars growing to full height
+        # Recreate the target bars with full height
+        target_bars = VGroup()
+        for j, c in enumerate(hist_counts):
+            if c == 0:
+                continue
+            x_left = bin_edges[j]
+            x_right = bin_edges[j + 1]
+            bar_width = x_right - x_left
+            bar_height = c / (bar_width * total_samples)
+            
+            target_bar = Rectangle(
+                width=bar_width * ax.x_axis.get_unit_size(),
+                height=bar_height * ax.y_axis.get_unit_size(),
+                fill_color=WHITE,
+                fill_opacity=0.3,
+                stroke_width=1,
+                stroke_color=WHITE
+            )
+            target_bar.move_to(ax.c2p((x_left + x_right) / 2, bar_height / 2))
+            target_bars.add(target_bar)
+        
+        self.wait(1)
+        
+        # Now redraw the target density curve
+        target_density = ax.get_graph(
+            lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
+            0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
+            color=WHITE,
+            stroke_width=3
+        )
+        self.plot_group.add(target_density)
+        
+        # Animate the target density appearing
+        self.play(
+            Transform(histogram_bars, target_bars),
+            ShowCreation(target_density),
+            run_time=2.0,
+            rate_func=smooth
+        )
+        
+        self.wait(2)
+
+        # endregion
         
