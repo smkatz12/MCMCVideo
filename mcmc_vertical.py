@@ -1,5 +1,6 @@
 from manimlib import *
 import numpy as np
+import random
 from manimlib.mobject.geometry import Rectangle
 
 TBLUE = "#80B9FF"  # Deep Sky Blue
@@ -407,7 +408,7 @@ class MCMC(Scene):
 
         # endregion
 
-        # region 11. Animate sampling from the kernel with density-based movement --------
+        # region 11. Animate sampling from the kernel with random position sampling --------
         target_x = sample_xs[-2]   # Second sample position (target from chain)
         
         # Create the sampling dot that will move along the kernel
@@ -415,60 +416,41 @@ class MCMC(Scene):
         sampling_dot.move_to(ax.c2p(current_x - 3.0, 0))  # Start at current_x - 3
         
         # Show the sampling dot appearing at current_x - 3
-        self.play(FadeIn(sampling_dot, scale=0.5), run_time=0.05)
+        self.play(FadeIn(sampling_dot, scale=0.5), run_time=0.5)
         
-        # Define the kernel function for speed calculation
+        # Define the kernel function for sampling
         def kernel_pdf(x):
             return np.exp(-(x - current_x)**2 / 2) / np.sqrt(2 * np.pi)
         
-        # Create the movement animation with density-based speed
-        def update_sampling_dot(mob, alpha):
-            # Movement parameters
-            oscillation_range = 3.0  # Oscillate ±3 around current_x
-            total_oscillations = 2.5  # 2 full oscillations + 0.5 to stop at target
-            
-            # Calculate which phase we're in
-            phase = alpha * total_oscillations
-            
-            if phase < 2.0:  # First two complete oscillations
-                # Complete oscillations between current_x-3 and current_x+3
-                # Use cosine starting at -1 (which gives us current_x-3) for continuity
-                oscillation_alpha = phase / 2.0  # Maps to 0-1 for two oscillations
-                # Start at current_x-3 (cos(0) = 1, so we use -cos to start at -1)
-                x_position = current_x - oscillation_range * np.cos(oscillation_alpha * 2 * PI)
-                
-            else:  # Third partial oscillation - stop at target
-                # Start from current_x-3 and move towards target_x
-                remaining_phase = phase - 2.0  # 0 to 0.5
-                progress_to_target = remaining_phase / 0.5  # Maps to 0-1
-                
-                # Start at current_x-3 and interpolate to target_x
-                start_x = current_x - oscillation_range
-                x_position = start_x + (target_x - start_x) * progress_to_target
-            
-            # Apply density-based speed modulation
-            density = kernel_pdf(x_position)
-            max_density = kernel_pdf(current_x)
-            
-            # Create a speed factor (higher density = slower movement)
-            if max_density > 0:
-                density_factor = density / max_density
-                # Slow down in high-density regions (reduced intensity)
-                speed_multiplier = 0.6 + 0.4 * (1 - density_factor)  # Speed varies from 0.6 to 1.0
-            else:
-                speed_multiplier = 1.0
-            
-            # Apply consistent speed modulation for all phases
-            effective_x = x_position * speed_multiplier + x_position * (1 - speed_multiplier) * 0.3
-            
-            mob.move_to(ax.c2p(effective_x, 0))
+        # Function to sample from the kernel using inverse transform sampling (approximate)
+        def sample_from_kernel():
+            # Use rejection sampling for the Gaussian kernel
+            while True:
+                # Sample uniformly from the range
+                x_candidate = random.uniform(current_x - 3, current_x + 3)
+                # Accept with probability proportional to kernel density
+                acceptance_prob = kernel_pdf(x_candidate) / kernel_pdf(current_x)
+                if random.random() < acceptance_prob:
+                    return x_candidate
         
-        # Animate the density-based sampling movement
-        self.play(
-            UpdateFromAlphaFunc(sampling_dot, update_sampling_dot),
-            run_time=3.0,  # Faster duration while still showing the oscillations clearly
-            rate_func=smooth
-        )
+        # Set random seed for reproducibility
+        random.seed(8)
+        
+        # Generate several random sample positions from the kernel
+        random_sample_positions = []
+        for _ in range(10):  # Generate 10 random samples from the kernel
+            random_sample_positions.append(sample_from_kernel())
+        random_sample_positions.append(target_x)  # End at the actual target value
+        
+        # Animate through the random positions sampled from the kernel
+        for i, x_pos in enumerate(random_sample_positions):
+            target_pos = ax.c2p(x_pos, 0)
+            if i < len(random_sample_positions) - 1:
+                # Quick movements for intermediate positions
+                self.play(sampling_dot.animate.move_to(target_pos), run_time=0.15)
+            else:
+                # Slower final movement to target
+                self.play(sampling_dot.animate.move_to(target_pos), run_time=0.4)
 
         # Add label for the green point (proposed state x') after it reaches final position
         x_prime_label = Tex(r"x'", font_size=36)
@@ -631,8 +613,13 @@ class MCMC(Scene):
         # endregion
 
         # region 15. Accept the proposal and clean up --------
+        # Add "ACCEPT!" text next to the x' sample
+        accept_text = Text("ACCEPT!", font="Gill Sans", font_size=32, color=TGREEN, weight=BOLD)
+        accept_text.next_to(sampling_dot, UP, buff=0.3)
+        
         # Remove the vertical lines and function dots
         self.play(
+            Write(accept_text),
             FadeOut(x_line),
             FadeOut(x_prime_line),
             FadeOut(f_x_label),
@@ -706,8 +693,9 @@ class MCMC(Scene):
         # Move only the new dot to its chain position (same x, new y)
         self.play(
             sampling_dot.animate.move_to(target_position).set_fill(TBLUE, opacity=0.8),
-            x_label.animate.next_to(target_position, DOWN, buff=0.05).align_to(ax.c2p(0, -0.05), DOWN),
+            x_label.animate.next_to(target_position, DOWN, buff=0.25), 
             ShowCreation(chain_line),
+            FadeOut(accept_text),
             run_time=1.5
         )
         
@@ -785,56 +773,48 @@ class MCMC(Scene):
         # Show the new sampling dot appearing
         self.play(FadeIn(new_sampling_dot, scale=0.5), run_time=0.5)
         
-        # Define the new kernel function for speed calculation
+        # Define the new kernel function for sampling
         def new_kernel_pdf(x):
             return np.exp(-(x - prev_x)**2 / 2) / np.sqrt(2 * np.pi)
         
-        # Create the movement animation for the second iteration along the temporary axis
-        def update_new_sampling_dot(mob, alpha):
-            # Movement parameters (same as before)
-            oscillation_range = 3.0
-            total_oscillations = 2.5
-            
-            # Calculate which phase we're in
-            phase = alpha * total_oscillations
-            
-            if phase < 2.0:  # First two complete oscillations
-                oscillation_alpha = phase / 2.0
-                x_position = prev_x - oscillation_range * np.cos(oscillation_alpha * 2 * PI)
-            else:  # Third partial oscillation - stop at target
-                remaining_phase = phase - 2.0
-                progress_to_target = remaining_phase / 0.5
-                start_x = prev_x - oscillation_range
-                x_position = start_x + (next_target_x - start_x) * progress_to_target
-            
-            # Apply density-based speed modulation
-            density = new_kernel_pdf(x_position)
-            max_density = new_kernel_pdf(prev_x)
-            
-            if max_density > 0:
-                density_factor = density / max_density
-                speed_multiplier = 0.6 + 0.4 * (1 - density_factor)
-            else:
-                speed_multiplier = 1.0
-            
-            effective_x = x_position * speed_multiplier + x_position * (1 - speed_multiplier) * 0.3
-            # Move along the temporary axis (same y-coordinate as current chain point)
-            temp_pos = ax.c2p(effective_x, 0)
-            temp_pos[1] = current_chain_y
-            mob.move_to(temp_pos)
+        # Function to sample from the kernel using rejection sampling
+        def sample_from_new_kernel():
+            # Use rejection sampling for the Gaussian kernel
+            while True:
+                # Sample uniformly from the range
+                x_candidate = random.uniform(prev_x - 3, prev_x + 3)
+                # Accept with probability proportional to kernel density
+                acceptance_prob = new_kernel_pdf(x_candidate) / new_kernel_pdf(prev_x)
+                if random.random() < acceptance_prob:
+                    return x_candidate
         
-        # Animate the second sampling movement
-        self.play(
-            UpdateFromAlphaFunc(new_sampling_dot, update_new_sampling_dot),
-            run_time=3.0,
-            rate_func=smooth
-        )
+        # Set random seed for reproducibility
+        random.seed(12)
+        
+        # Generate several random sample positions from the kernel
+        new_random_sample_positions = []
+        for _ in range(10):  # Generate 10 random samples from the kernel
+            new_random_sample_positions.append(sample_from_new_kernel())
+        new_random_sample_positions.append(next_target_x)  # End at the actual target value
+        
+        # Animate through the random positions sampled from the kernel along the temporary axis
+        for i, x_pos in enumerate(new_random_sample_positions):
+            # Position on the temporary axis (same y-coordinate as current chain point)
+            temp_pos = ax.c2p(x_pos, 0)
+            temp_pos[1] = current_chain_y
+            
+            if i < len(new_random_sample_positions) - 1:
+                # Quick movements for intermediate positions
+                self.play(new_sampling_dot.animate.move_to(temp_pos), run_time=0.15)
+            else:
+                # Slower final movement to target
+                self.play(new_sampling_dot.animate.move_to(temp_pos), run_time=0.4)
 
         # Add label for the new proposed state x' (not x'')
         x_prime_label_new = Tex(r"x'", font_size=36)
         x_prime_label_new.set_color(TGREEN)
-        x_prime_label_new.next_to(new_sampling_dot, DOWN, buff=0.15)
-        x_prime_label_new.align_to(ax.c2p(0, -0.05), DOWN)
+        x_prime_label_new.next_to(new_sampling_dot.get_center(), DOWN, buff=0.13)
+        # x_prime_label_new.align_to(ax.c2p(0, -0.05), DOWN)
         self.play(Write(x_prime_label_new), run_time=0.3)
 
         self.wait(0.5)
@@ -933,6 +913,8 @@ class MCMC(Scene):
         # Rule 2 applies (probabilistic acceptance) - show rule 2
         self.play(
             Write(rule2_condition),
+            rule1_condition.animate.set_opacity(0.5),
+            rule1_action.animate.set_opacity(0.5),
             run_time=1.0
         )
         self.play(
@@ -942,6 +924,7 @@ class MCMC(Scene):
         
         # After showing rule 2, move the function values to the rules box for calculation
         ratio_value = f_x_prime_value_new / f_x_value_new if f_x_value_new != 0 else float('inf')
+        ratio_value = round(ratio_value, 2)  # Round to 2 decimal places
         
         # Position the calculation aligned with the rule2_action text
         calc_base_position = rule2_action.get_right() + RIGHT
@@ -1063,7 +1046,7 @@ class MCMC(Scene):
         red_segment = Line(
             ratio_position,
             number_line_end,
-            color=TBLUE,
+            color=TRED,
             stroke_width=8,
             stroke_opacity=0.8
         )
@@ -1076,7 +1059,6 @@ class MCMC(Scene):
         )
         
         # Generate a random number that will be less than ratio_value for acceptance
-        import random
         random.seed(42)
         final_random_value = random.uniform(0.05, ratio_value - 0.02)  # Ensure it's less than ratio_value
         
@@ -1134,64 +1116,555 @@ class MCMC(Scene):
             FadeOut(green_segment),
             FadeOut(red_segment),
             FadeOut(random_number_dot),
-            FadeOut(accept_result),
             FadeOut(x_line_new),
             FadeOut(x_prime_line_new),
             FadeOut(f_x_dot_new),
             FadeOut(f_x_prime_dot_new),
             FadeOut(x_prime_label_new),
             FadeOut(temp_x_axis),
+            # Fade out the f(x')/f(x) calculation elements
+            FadeOut(fraction_duplicate),
+            FadeOut(equals_1),
+            FadeOut(fraction_line),
+            FadeOut(f_x_prime_number_part),
+            FadeOut(f_x_number_part),
+            FadeOut(equals_2),
+            FadeOut(result),
             pdf_curve_new.animate.set_stroke(opacity=0.0),
-            run_time=1.0
+            accept_result.animate.next_to(new_sampling_dot, UP, buff=0.2),
+            rule1_condition.animate.set_opacity(1.0),
+            rule1_action.animate.set_opacity(1.0),
+            # Return the first point and line to normal opacity
+            first_dot.animate.set_fill(opacity=0.8),
+            chain_line.animate.set_stroke(opacity=0.8),
+            run_time=1.5
         )
         
         self.wait(0.5)
-
-        # Add the second accepted sample to the chain
-        # First, move new_sampling_dot to the axis level (same x, but y = 0)
-        new_sampling_dot_axis_pos = np.array([new_sampling_dot.get_center()[0], ax.c2p(0, 0)[1], new_sampling_dot.get_center()[2]])
         
-        # Move the dot to axis level first
+        # Add the second accepted sample to the chain
+        # The new point joins the existing chain structure from region 6
+        # We just need to connect it to the existing chain and make it blue
+        
+        # Calculate where this point would be in the original extended chain from region 6
+        # It would be the third-to-last point (index -3), so get its y-position
+        total_samples = len(sample_xs)
+        third_to_last_index = total_samples - 3  # Index of the third-to-last sample
+        
+        # Use the same chain extension logic from region 6 to find where this point should be
+        if third_to_last_index == total_samples - 1:
+            extension = 0.0  # Final point stays on axis
+        else:
+            extension_factor = (total_samples - third_to_last_index - 1) / (total_samples - 1)
+            extension = max_extension * extension_factor
+        
+        # Get the axis position for the new sampling dot and apply the extension
+        new_sampling_axis_pos = ax.c2p(ax.p2c(new_sampling_dot.get_center())[0], 0)
+        new_sampling_target = new_sampling_axis_pos + chain_direction * extension
+        
+        # Create a connecting line from the current end of the chain to the new point
+        # The current chain ends at sampling_dot, so connect from there to new_sampling_dot
+        new_chain_line = Line(sampling_dot.get_center(), new_sampling_target)
+        new_chain_line.set_stroke(TBLUE, width=3, opacity=0.8)
+        
+        # Move the new dot to its chain position and make it blue, then show the connection
         self.play(
-            new_sampling_dot.animate.move_to(new_sampling_dot_axis_pos),
+            new_sampling_dot.animate.move_to(new_sampling_target).set_fill(TBLUE, opacity=0.8),
+            ShowCreation(new_chain_line),
+            x_label.animate.next_to(new_sampling_target, DOWN, buff=0.25),
+            FadeOut(accept_result),
+            run_time=1.5
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 22. Repeat the process for the next sample with rejection --------
+        # Now we'll repeat the sampling process again, starting from the current state (new_sampling_dot)
+        # This time the sample will be rejected to demonstrate the rejection case
+        
+        # Update the current position for the next iteration
+        current_x_third = next_target_x  # The new_sampling_dot position becomes the new current state
+        
+        # Get the position of the current chain point for the temporary x-axis
+        current_chain_pos_third = new_sampling_dot.get_center()
+        current_chain_y_third = current_chain_pos_third[1]
+        
+        # Create a temporary x-axis aligned with the current chain point
+        # Use screen coordinates directly
+        left_point_third = ax.c2p(-4, 0)
+        right_point_third = ax.c2p(4, 0)
+        left_point_third[1] = current_chain_y_third  # Set y to match chain point
+        right_point_third[1] = current_chain_y_third  # Set y to match chain point
+        
+        temp_x_axis_third = Line(
+            left_point_third,
+            right_point_third,
+            color=WHITE,
+            stroke_width=2,
+            stroke_opacity=0.3
+        )
+        
+        # Show the temporary x-axis
+        self.play(ShowCreation(temp_x_axis_third), run_time=1.0)
+        
+        # Fade the previous iteration elements to lower opacity
+        self.play(
+            sampling_dot.animate.set_fill(opacity=0.3),
+            new_chain_line.animate.set_stroke(opacity=0.3),
+            first_dot.animate.set_fill(opacity=0.3),
+            chain_line.animate.set_stroke(opacity=0.3),
+            run_time=0.5
+        )
+        
+        # Show the creation of a new Gaussian kernel centered at the new current state
+        # But position it relative to the temporary axis
+        third_gaussian_kernel = ax.get_graph(
+            lambda x: np.exp(-(x-current_x_third)**2 / 2) / np.sqrt(2 * np.pi),
+            color=TGREEN,
+            x_range=[current_x_third-3, current_x_third+3]
+        )
+        # Shift the kernel to align with the temporary axis
+        kernel_shift_third = current_chain_y_third - ax.c2p(0, 0)[1]  # Calculate shift from main axis
+        third_gaussian_kernel.shift(UP * kernel_shift_third)
+        
+        third_gaussian_kernel_label = Text("Kernel", font="Gill Sans", font_size=36)
+        third_gaussian_kernel_label.set_color(TGREEN)
+        third_gaussian_kernel_label.next_to(third_gaussian_kernel, UP, buff=0.2)
+
+        self.play(
+            ShowCreation(third_gaussian_kernel),
+            Write(third_gaussian_kernel_label),
+            run_time=2
+        )
+        
+        self.wait(1)
+
+        # Create a new sampling dot for the third iteration on the temporary axis
+        third_sampling_dot = Dot(radius=0.1, fill_color=TGREEN, fill_opacity=1.0)
+        # Position it on the temporary x-axis at current_x_third - 3
+        temp_axis_start_pos_third = ax.c2p(current_x_third - 3.0, 0)
+        temp_axis_start_pos_third[1] = current_chain_y_third  # Align with temporary axis
+        third_sampling_dot.move_to(temp_axis_start_pos_third)
+        
+        # Show the new sampling dot appearing
+        self.play(FadeIn(third_sampling_dot, scale=0.5), run_time=0.5)
+        
+        # Define the third kernel function for sampling
+        def third_kernel_pdf(x):
+            return np.exp(-(x - current_x_third)**2 / 2) / np.sqrt(2 * np.pi)
+        
+        # Function to sample from the kernel using rejection sampling
+        def sample_from_third_kernel():
+            # Use rejection sampling for the Gaussian kernel
+            while True:
+                # Sample uniformly from the range
+                x_candidate = random.uniform(current_x_third - 3, current_x_third + 3)
+                # Accept with probability proportional to kernel density
+                acceptance_prob = third_kernel_pdf(x_candidate) / third_kernel_pdf(current_x_third)
+                if random.random() < acceptance_prob:
+                    return x_candidate
+        
+        # Set random seed for reproducibility and choose a position in low probability area
+        random.seed(16)
+        
+        # Generate several random sample positions from the kernel
+        third_random_sample_positions = []
+        for _ in range(10):  # Generate 10 random samples from the kernel
+            third_random_sample_positions.append(sample_from_third_kernel())
+        
+        # For the final position, choose a value that will have low target density
+        # This should be to the right of the current position where density is lower
+        rejection_target_x = current_x_third + 1.5  # Move to the right where density is lower
+        third_random_sample_positions.append(rejection_target_x)  # End at the rejection target
+        
+        # Animate through the random positions sampled from the kernel along the temporary axis
+        for i, x_pos in enumerate(third_random_sample_positions):
+            # Position on the temporary axis (same y-coordinate as current chain point)
+            temp_pos = ax.c2p(x_pos, 0)
+            temp_pos[1] = current_chain_y_third
+            
+            if i < len(third_random_sample_positions) - 1:
+                # Quick movements for intermediate positions
+                self.play(third_sampling_dot.animate.move_to(temp_pos), run_time=0.15)
+            else:
+                # Slower final movement to target
+                self.play(third_sampling_dot.animate.move_to(temp_pos), run_time=0.4)
+
+        # Add label for the new proposed state x' 
+        x_prime_label_third = Tex(r"x'", font_size=36)
+        x_prime_label_third.set_color(TGREEN)
+        x_prime_label_third.next_to(third_sampling_dot.get_center(), DOWN, buff=0.13)
+        self.play(Write(x_prime_label_third), run_time=0.3)
+
+        self.wait(0.5)
+
+        # Fade out the kernel for this iteration
+        self.play(
+            FadeOut(third_gaussian_kernel, run_time=0.5),
+            FadeOut(third_gaussian_kernel_label, run_time=0.5),
+        )
+
+        self.wait(0.5)
+
+        # endregion
+
+        # region 23. Show the target density again for function evaluation (third iteration) -------------------
+        # Show the target density again for function evaluation
+        # This time, shift it to align with the third temporary x-axis
+        pdf_curve_third = ax.get_graph(
+            lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
+            0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
+            color=WHITE
+        )
+        # Shift the PDF curve to align with the third temporary axis
+        pdf_shift_third = current_chain_y_third - ax.c2p(0, 0)[1]  # Calculate shift from main axis
+        pdf_curve_third.shift(UP * pdf_shift_third)
+        self.plot_group.add(pdf_curve_third)
+    
+        self.play(ShowCreation(pdf_curve_third), run_time=2)
+
+        # Define the target PDF function for evaluation (same as before)
+        def target_pdf_third(x):
+            if NORMAL:
+                return np.exp(-x**2 / 2) / np.sqrt(2 * np.pi)
+            else:
+                return 0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x))
+        
+        # Get the current positions and function values for the third iteration
+        x_pos_third = current_x_third  # Current state position (from new_sampling_dot)
+        # Get the actual x-coordinate where the third_sampling_dot ended up
+        x_prime_pos_third = ax.p2c(third_sampling_dot.get_center())[0]  # Use actual position of third_sampling_dot
+        f_x_value_third = target_pdf_third(x_pos_third)
+        f_x_value_third = round(f_x_value_third, 3)  # Round to 3 decimal places
+        f_x_prime_value_third = target_pdf_third(x_prime_pos_third)
+        f_x_prime_value_third = round(f_x_prime_value_third, 3)  # Round to 3 decimal places
+        
+        # Create vertical lines from the chain points to function values
+        # For the current state (new_sampling_dot), draw from its chain position
+        x_line_third = Line(
+            new_sampling_dot.get_center(),  # Start from chain position
+            np.array([ax.c2p(x_pos_third, f_x_value_third)[0], current_chain_y_third + f_x_value_third * ax.y_axis.get_unit_size(), 0]),  # End at shifted function value
+            color=TBLUE,
+            stroke_width=3
+        )
+        
+        # For the proposed state, draw from the temporary axis level to function value
+        x_prime_line_third = Line(
+            third_sampling_dot.get_center(),  # Start from temporary axis position
+            np.array([ax.c2p(x_prime_pos_third, f_x_prime_value_third)[0], current_chain_y_third + f_x_prime_value_third * ax.y_axis.get_unit_size(), 0]),  # End at shifted function value
+            color=TGREEN,
+            stroke_width=3
+        )
+        
+        # Animate drawing both lines simultaneously
+        self.play(
+            ShowCreation(x_line_third),
+            ShowCreation(x_prime_line_third),
+            run_time=1.5
+        )
+        
+        # Create function value labels
+        f_x_label_third = Tex(f"f(x) = {f_x_value_third:.3f}", font_size=28)
+        f_x_label_third.set_color(TBLUE)
+        f_x_label_third.next_to(np.array([ax.c2p(x_pos_third, f_x_value_third)[0], current_chain_y_third + f_x_value_third * ax.y_axis.get_unit_size(), 0]), UP, buff=0.1)
+        
+        f_x_prime_label_third = Tex(f"f(x') = {f_x_prime_value_third:.3f}", font_size=28)
+        f_x_prime_label_third.set_color(TGREEN)
+        f_x_prime_label_third.next_to(np.array([ax.c2p(x_prime_pos_third, f_x_prime_value_third)[0], current_chain_y_third + f_x_prime_value_third * ax.y_axis.get_unit_size(), 0]), UP, buff=0.1)
+        
+        # Create dots at the function value points
+        f_x_dot_third = Dot(np.array([ax.c2p(x_pos_third, f_x_value_third)[0], current_chain_y_third + f_x_value_third * ax.y_axis.get_unit_size(), 0]), radius=0.08, fill_color=TBLUE, fill_opacity=1.0)
+        f_x_prime_dot_third = Dot(np.array([ax.c2p(x_prime_pos_third, f_x_prime_value_third)[0], current_chain_y_third + f_x_prime_value_third * ax.y_axis.get_unit_size(), 0]), radius=0.08, fill_color=TGREEN, fill_opacity=1.0)
+        
+        # Animate adding the labels and dots simultaneously
+        self.play(
+            Write(f_x_label_third),
+            Write(f_x_prime_label_third),
+            FadeIn(f_x_dot_third, scale=0.5),
+            FadeIn(f_x_prime_dot_third, scale=0.5),
+            pdf_curve_third.animate.set_stroke(opacity=0.3),  # Fade the function curve
+            run_time=1.0
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 24. Update the rules box with the third iteration function values and calculate ratio --------
+        # Rule 2 applies (probabilistic acceptance) for this rejection scenario
+        # Since rule 2 is already visible from the previous iteration, just update the opacity to highlight it
+        self.play(
+            rule2_condition.animate.set_opacity(1.0),
+            rule2_action.animate.set_opacity(1.0),
+            rule1_condition.animate.set_opacity(0.5),
+            rule1_action.animate.set_opacity(0.5),
+            run_time=1.0
+        )
+        
+        # Calculate the ratio for the third iteration (this should be < 1 for rejection)
+        ratio_value_third = f_x_prime_value_third / f_x_value_third if f_x_value_third != 0 else float('inf')
+        ratio_value_third = round(ratio_value_third, 2)  # Round to 2 decimal places
+        
+        # Position the calculation aligned with the rule2_action text (same as before)
+        calc_base_position_third = rule2_action.get_right() + RIGHT
+
+        # Create a duplicate of the f(x')/f(x) fraction from rule2_action
+        fraction_in_rule_third = rule2_action.get_part_by_tex(r"\frac{f(x')}{f(x)}")
+        fraction_duplicate_third = Tex(r"\frac{f(x')}{f(x)}", font_size=18, color=WHITE)
+        fraction_duplicate_third.move_to(fraction_in_rule_third.get_center())
+
+        # Create the calculation components for vertical fraction (smaller size)
+        fraction_line_third = Line(LEFT * 0.3, RIGHT * 0.3, stroke_width=1, color=WHITE)
+        equals_1_third = Tex("=", font_size=18, color=WHITE)
+        equals_2_third = Tex("=", font_size=18, color=WHITE)
+        result_third = Tex(f"{ratio_value_third:.2f}", font_size=18, color=WHITE)
+        
+        # Calculate target positions for the calculation layout
+        fraction_target_pos_third = calc_base_position_third
+        
+        # Position equals_1 to the right of the target fraction position
+        equals_1_third.next_to(fraction_target_pos_third, RIGHT, buff=0.3)
+        
+        # Position the numeric fraction components after equals_1
+        fraction_line_third.next_to(equals_1_third, RIGHT, buff=0.1)
+        f_x_prime_target_third = fraction_line_third.get_center() + UP * 0.125  # Numerator above line
+        f_x_target_third = fraction_line_third.get_center() + DOWN * 0.125      # Denominator below line
+        
+        # Position equals_2 and result to the right of the numeric fraction
+        equals_2_third.next_to(fraction_line_third, RIGHT, buff=0.1)
+        result_third.next_to(equals_2_third, RIGHT, buff=0.1)
+        
+        # Animate the numbers from the labels moving to the calculation
+        f_x_number_part_third = f_x_label_third.get_part_by_tex(f"{f_x_value_third:.3f}")
+        f_x_prime_number_part_third = f_x_prime_label_third.get_part_by_tex(f"{f_x_prime_value_third:.3f}")
+        
+        self.play(
+            fraction_duplicate_third.animate.move_to(fraction_target_pos_third),
+            f_x_prime_number_part_third.animate.move_to(f_x_prime_target_third).scale(18/28),
+            f_x_number_part_third.animate.move_to(f_x_target_third).scale(18/28),
+            FadeOut(f_x_label_third.get_parts_by_tex("f(x) =")),
+            FadeOut(f_x_prime_label_third.get_parts_by_tex("f(x') =")),
+            FadeIn(equals_1_third),
+            FadeIn(fraction_line_third),
+            run_time=1.5
+        )
+        
+        # Now add the rest of the calculation elements
+        self.play(
+            FadeIn(equals_2_third),
+            FadeIn(result_third),
+            run_time=1.0
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 25. Show random number generation and rejection based on ratio --------
+        # Create a number line from 0 to 1 below the rules box (same as region 20)
+        number_line_length = 3.0
+        number_line_start = rules_box.get_bottom() + UP * 1.5 + RIGHT * 2.0
+        number_line_end = number_line_start + RIGHT * number_line_length
+        
+        # Create the number line
+        number_line_third = Line(number_line_start, number_line_end, color=WHITE, stroke_width=3)
+        
+        # Create tick marks and labels for 0 and 1
+        tick_0_third = Line(number_line_start + DOWN * 0.1, number_line_start + UP * 0.1, color=WHITE, stroke_width=2)
+        tick_1_third = Line(number_line_end + DOWN * 0.1, number_line_end + UP * 0.1, color=WHITE, stroke_width=2)
+        
+        label_0_third = Tex("0", font_size=20, color=WHITE)
+        label_0_third.next_to(tick_0_third, DOWN, buff=0.1)
+        
+        label_1_third = Tex("1", font_size=20, color=WHITE)
+        label_1_third.next_to(tick_1_third, DOWN, buff=0.1)
+        
+        # Show the number line
+        self.play(
+            ShowCreation(number_line_third),
+            ShowCreation(tick_0_third),
+            ShowCreation(tick_1_third),
+            Write(label_0_third),
+            Write(label_1_third),
+            run_time=1.0
+        )
+        
+        # Calculate position for the ratio_value_third on the number line
+        ratio_position_third = number_line_start + RIGHT * (ratio_value_third * number_line_length)
+        
+        # Create tick mark for ratio_value_third
+        tick_ratio_third = Line(ratio_position_third + DOWN * 0.15, ratio_position_third + UP * 0.15, color=WHITE, stroke_width=2)
+        
+        # Duplicate the ratio value from the calculation and move it to the number line
+        ratio_duplicate_third = result_third.copy()
+        
+        self.play(
+            ShowCreation(tick_ratio_third),
+            ratio_duplicate_third.animate.next_to(tick_ratio_third, DOWN, buff=0.1),
+            run_time=1.0
+        )
+        
+        # Create colored segments on the number line
+        # Green segment (accept region): from 0 to ratio_value_third
+        green_segment_third = Line(
+            number_line_start, 
+            ratio_position_third,
+            color=TGREEN,
+            stroke_width=8,
+            stroke_opacity=0.8
+        )
+        
+        # Red segment (reject region): from ratio_value_third to 1
+        red_segment_third = Line(
+            ratio_position_third,
+            number_line_end,
+            color=TRED,
+            stroke_width=8,
+            stroke_opacity=0.8
+        )
+        
+        # Show the colored segments
+        self.play(
+            ShowCreation(green_segment_third),
+            ShowCreation(red_segment_third),
+            run_time=1.0
+        )
+        
+        # Generate a random number that will be GREATER than ratio_value_third for rejection
+        random.seed(24)
+        final_random_value_third = random.uniform(ratio_value_third + 0.05, 0.95)  # Ensure it's greater than ratio_value_third
+        
+        # Create a dot that will move along the number line to show random sampling
+        random_number_dot_third = Dot(radius=0.08, fill_color=YELLOW, fill_opacity=1.0)
+        random_number_dot_third.move_to(number_line_start + UP * 0.3)  # Start above the number line at 0
+        
+        # Show the sampling dot
+        self.play(FadeIn(random_number_dot_third, scale=0.5), run_time=0.5)
+        
+        # Animate the dot moving randomly along the number line several times before settling
+        random_positions_third = []
+        for _ in range(12):  # Generate several random positions
+            random_positions_third.append(random.uniform(0.1, 0.9))
+        random_positions_third.append(final_random_value_third)  # End at our target value for rejection
+        
+        # Animate through the random positions
+        for i, pos in enumerate(random_positions_third):
+            target_pos = number_line_start + RIGHT * (pos * number_line_length) + UP * 0.3
+            if i < len(random_positions_third) - 1:
+                # Quick movements for intermediate positions
+                self.play(random_number_dot_third.animate.move_to(target_pos), run_time=0.1)
+            else:
+                # Slower final movement
+                self.play(random_number_dot_third.animate.move_to(target_pos), run_time=0.3)
+        
+        # Since the random number is GREATER than ratio_value_third, change the dot to red to show rejection
+        self.play(
+            random_number_dot_third.animate.set_fill(TRED, opacity=1.0),
+            run_time=0.5
+        )
+        
+        # Add "REJECT!" text
+        reject_result = Text("REJECT!", font="Gill Sans", font_size=24, color=TRED, weight=BOLD)
+        reject_result.next_to(random_number_dot_third, UP, buff=0.2)
+        
+        self.play(Write(reject_result), run_time=0.8)
+        
+        self.wait(2)
+
+        # endregion
+
+        # region 26. Handle rejection - clean up and show chain staying at current position --------
+        # Clean up the number line and function evaluation elements
+        self.play(
+            FadeOut(number_line_third),
+            FadeOut(tick_0_third),
+            FadeOut(tick_1_third),
+            FadeOut(label_0_third),
+            FadeOut(label_1_third),
+            FadeOut(tick_ratio_third),
+            FadeOut(ratio_duplicate_third),
+            FadeOut(green_segment_third),
+            FadeOut(red_segment_third),
+            FadeOut(random_number_dot_third),
+            FadeOut(x_line_third),
+            FadeOut(x_prime_line_third),
+            FadeOut(f_x_dot_third),
+            FadeOut(f_x_prime_dot_third),
+            FadeOut(temp_x_axis_third),
+            # Fade out the f(x')/f(x) calculation elements
+            FadeOut(fraction_duplicate_third),
+            FadeOut(equals_1_third),
+            FadeOut(fraction_line_third),
+            FadeOut(f_x_prime_number_part_third),
+            FadeOut(f_x_number_part_third),
+            FadeOut(equals_2_third),
+            FadeOut(result_third),
+            pdf_curve_third.animate.set_stroke(opacity=0.0),
+            reject_result.animate.next_to(third_sampling_dot, UP, buff=0.2),
+            rule1_condition.animate.set_opacity(1.0),
+            rule1_action.animate.set_opacity(1.0),
+            run_time=1.5
+        )
+        
+        self.wait(0.5)
+        
+        # Make the rejected sample "poof" away with a scaling animation
+        self.play(
+            third_sampling_dot.animate.scale(0.1).set_fill(opacity=0.0),
+            x_prime_label_third.animate.scale(0.1).set_fill(opacity=0.0),
+            reject_result.animate.scale(0.1).set_fill(opacity=0.0),
             run_time=0.8
         )
         
-        # Now calculate the new chain configuration with the additional dot
-        # Update the sample_dots list to include both new dots
-        self.sample_dots.append(sampling_dot)
-        self.sample_dots.append(new_sampling_dot)
+        # Remove the rejected elements completely
+        self.remove(third_sampling_dot, x_prime_label_third, reject_result)
         
-        # Update original_axis_positions to include the new dots
-        original_axis_positions.append(sampling_dot.get_center().copy())  # Current position of first new dot
-        original_axis_positions.append(new_sampling_dot_axis_pos.copy())  # Axis position of second new dot
+        # Since we rejected, the chain stays at the current position (new_sampling_dot)
+        # We need to create a new sample dot at the same x-position as new_sampling_dot
+        # Calculate where this point would be in the original extended chain from region 6
+        # It would be the fourth-to-last point (one more than the previous addition)
+        total_samples = len(sample_xs)
+        fourth_to_last_index = total_samples - 4  # Index of the fourth-to-last sample
         
-        # Use the existing get_chain_points function with the updated sample_dots
-        final_chain_points = get_chain_points(1.0)
+        # Use the same chain extension logic from region 6 to find where this point should be
+        if fourth_to_last_index == total_samples - 1:
+            extension = 0.0  # Final point stays on axis
+        else:
+            extension_factor = (total_samples - fourth_to_last_index - 1) / (total_samples - 1)
+            extension = max_extension * extension_factor
         
-        # Create new chain lines connecting all the dots
-        chain_lines = []
-        for i in range(len(self.sample_dots) - 1):
-            line = Line(
-                final_chain_points[i],
-                final_chain_points[i + 1],
-                color=TBLUE,
-                stroke_width=3,
-                opacity=0.8
-            )
-            chain_lines.append(line)
+        # Get the axis position for the new sampling dot (same x as current state) and apply the extension
+        current_x_pos = ax.p2c(new_sampling_dot.get_center())[0]  # Get x-coordinate of current state
+        rejected_sample_axis_pos = ax.c2p(current_x_pos, 0)  # Same x-position as current state
+        rejected_sample_target = rejected_sample_axis_pos + chain_direction * extension
         
-        # Move all dots to their final chain positions and create the full chain
-        dot_movements = []
-        for i, dot in enumerate(self.sample_dots):
-            dot_movements.append(dot.animate.move_to(final_chain_points[i]).set_fill(TBLUE, opacity=0.8))
+        # Create a new dot that represents the "rejected iteration" (stays at same x)
+        rejected_iteration_dot = Dot(radius=0.1, fill_color=TBLUE, fill_opacity=0.8)
+        # Start it at the current chain position (new_sampling_dot) and move it to the new chain position
+        rejected_iteration_dot.move_to(new_sampling_dot.get_center())
         
-        # Animate the chain extension
+        # Create a connecting line from the current end of the chain to the new position
+        # The current chain ends at new_sampling_dot, so connect from there to the new position
+        rejected_chain_line = Line(new_sampling_dot.get_center(), rejected_sample_target)
+        rejected_chain_line.set_stroke(TBLUE, width=3, opacity=0.8)
+        
+        # Show the new dot appearing at the current position
+        self.play(FadeIn(rejected_iteration_dot, scale=0.5), run_time=0.5)
+        
+        # Move the dot to its new chain position and show the connection
+        # Also return the previous elements to normal opacity
         self.play(
-            *dot_movements,
-            *[ShowCreation(line) for line in chain_lines],
-            FadeOut(chain_line),  # Remove the old single chain line
-            run_time=2.0
+            rejected_iteration_dot.animate.move_to(rejected_sample_target),
+            ShowCreation(rejected_chain_line),
+            x_label.animate.next_to(rejected_sample_target, DOWN, buff=0.25),
+            # Return previous elements to normal opacity
+            sampling_dot.animate.set_fill(opacity=0.8),
+            new_chain_line.animate.set_stroke(opacity=0.8),
+            first_dot.animate.set_fill(opacity=0.8),
+            chain_line.animate.set_stroke(opacity=0.8),
+            run_time=1.5
         )
         
         self.wait(1)
