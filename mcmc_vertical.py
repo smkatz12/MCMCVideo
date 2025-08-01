@@ -8,6 +8,7 @@ TPURPLE = "#C3B8FF"
 TGREEN = "#80CFB9"
 TPINK = "#FFA4E7"
 TRED = "#FAB0AE"
+TYELLOW = "#FEEAAD"
 
 # ── change this flag to switch pdf ───────────────────────────
 NORMAL = False               # True → standard normal
@@ -161,6 +162,8 @@ class MCMC(Scene):
 
         # Store sample dots for chain creation
         self.sample_dots = sample_dots
+
+        self.wait(1.0)
 
         # endregion
 
@@ -2074,7 +2077,7 @@ class MCMC(Scene):
             color=WHITE,
             stroke_width=3
         )
-        self.plot_group.add(target_density)
+        # Don't add to plot_group since we want to fade it out separately in region 30
         
         # Animate the target density appearing
         self.play(
@@ -2087,4 +2090,341 @@ class MCMC(Scene):
         self.wait(2)
 
         # endregion
+
+        # region 30. Fade out plot elements and scale up rules box to center --------
+        # Collect all plot elements to fade out
+        plot_elements_to_fade = []
+        
+        # Add the main plot group elements
+        if hasattr(self, 'plot_group'):
+            plot_elements_to_fade.extend(self.plot_group.submobjects)
+        
+        # Add the axes
+        plot_elements_to_fade.append(ax)
+        
+        # Add any histogram bars that are still visible
+        try:
+            plot_elements_to_fade.append(histogram_bars)
+        except:
+            pass
+        
+        # Add any remaining sample dots on the x-axis
+        if hasattr(self, 'sample_dots'):
+            plot_elements_to_fade.extend(self.sample_dots)
+        
+        # Add any other plot-related elements that might be visible
+        # Search for any remaining visible elements that are part of the plot
+        for obj in self.mobjects:
+            try:
+                # Check if it's a plot-related object (positioned in the main plot area)
+                center = obj.get_center()
+                # If it's in the main plot area (roughly y between -1 and 3, x between -6 and 6)
+                if (-6 <= center[0] <= 6 and -1 <= center[1] <= 3 and 
+                    obj not in plot_elements_to_fade and 
+                    obj != rules_box and obj != rules_title and 
+                    obj != rule1_condition and obj != rule1_action and 
+                    obj != rule2_condition and obj != rule2_action):
+                    # Don't fade the rules box and its contents
+                    plot_elements_to_fade.append(obj)
+            except:
+                pass
+        
+        # Fade out all plot elements
+        fade_animations = [FadeOut(element) for element in plot_elements_to_fade 
+                          if element != rules_box and element != rules_title and 
+                          element != rule1_condition and element != rule1_action and 
+                          element != rule2_condition and element != rule2_action]
+        
+        # Scale up the text elements and move to center
+        text_scale_factor = 2.0  # Scale text to double size
+        screen_center = ORIGIN  # Center of the screen
+        
+        # Scale the rules box differently - make it wider
+        box_width_scale = 3.0   # Make it wider
+        box_height_scale = 1.8  # Keep height scaling more modest
+        
+        # Create individual text animations to center each element as it scales
+        text_animations = [
+            rules_title.animate.scale(text_scale_factor).move_to(screen_center + UP * 1.8),
+            rule1_condition.animate.scale(text_scale_factor).move_to(screen_center + UP * 1.0),
+            rule1_action.animate.scale(text_scale_factor).move_to(screen_center + UP * 0.3),
+            rule2_condition.animate.scale(text_scale_factor).move_to(screen_center + DOWN * 0.8),
+            rule2_action.animate.scale(text_scale_factor).move_to(screen_center + DOWN * 1.5)
+        ]
+        
+        box_animations = [
+            rules_box.animate.stretch_to_fit_width(rules_box.get_width() * box_width_scale)
+                             .stretch_to_fit_height(rules_box.get_height() * box_height_scale)
+                             .move_to(screen_center)
+        ]
+        
+        # Execute all animations simultaneously
+        all_animations = fade_animations + text_animations + box_animations
+        
+        self.play(
+            *all_animations,
+            run_time=1
+        )
+        
+        self.wait(1)
+
+        # endregion
+
+        # region 31. Highlight the first rule --------
+        self.play(
+            rule2_condition.animate.set_opacity(0.3),
+            rule2_action.animate.set_opacity(0.3),
+        )
+
+        rule1_transform_condition = Tex(r"\text{If the proposed sample has \textbf{higher} density:}", font_size=36)
+        rule1_transform_condition.move_to(rule1_condition.get_center())
+        self.play(Transform(rule1_condition, rule1_transform_condition))
+
+        x_prime_part = rule1_action.get_part_by_tex("x'")
+        x_prime_part_transform = Tex(r"\text{it!}", font_size=40)
+        x_prime_part_transform.move_to(x_prime_part.get_center() + 0.02 * DOWN)
+        self.play(Transform(x_prime_part, x_prime_part_transform))
+
+        self.play(
+            rule1_condition.animate.set_opacity(0.3),
+            rule1_action.animate.set_opacity(0.3),
+            # x_prime_part_transform.animate.set_opacity(0.3),
+            x_prime_part.animate.set_opacity(0.3),
+            rule2_condition.animate.set_opacity(1.0),
+            rule2_action.animate.set_opacity(1.0),
+            run_time=0.5
+        )
+
+        rule2_transform_condition = Tex(r"\text{If the proposed sample has \textbf{lower} density:}", font_size=36)
+        rule2_transform_condition.move_to(rule2_condition.get_center())
+        self.play(Transform(rule2_condition, rule2_transform_condition))
+
+        # frac_part = rule2_action.get_part_by_tex(r"\frac{f(x')}{f(x)}")
+        # non_frac_part = rule2_action.get_part_by_tex(r"\text{Accept with prob. }")
+        # frac_part_transform = Tex(r"\text{ proportional to how much lower}", font_size=36)
+        # frac_part_transform.next_to(non_frac_part, RIGHT, buff=0.1)
+        # new_condition = VGroup(non_frac_part, frac_part_transform)
+        # # new_condition.move_to(rule2_action.get_center())
+        # self.play(Transform(frac_part, frac_part_transform),
+        #         #   non_frac_part.animate.move_to(non_frac_part.get_center()),
+        #           new_condition.animate.move_to(rule2_action.get_center())
+        # )
+        rule2_transform_action = Tex(r"\text{Accept with prob proportional to how much lower}", font_size=36)
+        rule2_transform_action.move_to(rule2_action.get_center())
+        self.play(Transform(rule2_action, rule2_transform_action))
+
+        self.play(
+            rule1_condition.animate.set_opacity(1.0),
+            rule1_action.animate.set_opacity(1.0),
+            x_prime_part.animate.set_opacity(1.0),
+            run_time=0.5
+        )
+
+        # endregion
+
+        # region 32. More intuition --------
+        rule1 = VGroup(rule1_condition, rule1_action, x_prime_part)
+        text1 = Text("Sample in high density regions.", font="Gill Sans", font_size=46)
+        text1.set_color(TGREEN)
+        text1.move_to(rule1.get_center())
+        self.play(rule1.animate.set_opacity(0.0),
+                  Write(text1),
+                  run_time=0.5)
+
+        rule2 = VGroup(rule2_transform_condition, rule2_transform_action)
+        text2 = Text("Sometimes still sample in low density regions.", font="Gill Sans", font_size=46)
+        text2.set_color(TYELLOW)
+        text2.move_to(rule2.get_center())
+        self.play(rule2_transform_condition.animate.set_opacity(0.0),
+                  rule2_transform_action.animate.set_opacity(0.0),
+                  rule2_condition.animate.set_opacity(0.0),
+                  rule2_action.animate.set_opacity(0.0),
+                  Write(text2),
+                  run_time=0.5)
+
+        # endregion
+
+        # region 33. Fade everything out and clear scene --------
+        # Collect all visible objects to fade out
+        all_objects_to_fade = []
+        
+        # Add the rules box and all text elements
+        try:
+            all_objects_to_fade.append(rules_box)
+        except:
+            pass
+        
+        try:
+            all_objects_to_fade.append(text1)
+        except:
+            pass
+            
+        try:
+            all_objects_to_fade.append(text2)
+        except:
+            pass
+        
+        # Add any remaining visible objects in the scene
+        for obj in self.mobjects:
+            if obj not in all_objects_to_fade:
+                all_objects_to_fade.append(obj)
+        
+        # Fade out everything
+        if all_objects_to_fade:
+            self.play(
+                *[FadeOut(obj) for obj in all_objects_to_fade],
+                run_time=2.0
+            )
+        
+        # Clear the scene completely
+        self.clear()
+        
+        self.wait(1)
+        
+        # endregion
+
+        # region 34. Convergence in the limit --------
+        theorem = Text("MCMC will converge to the target distribution in the limit of infinite samples!", font="Gill Sans", font_size=36)
+        self.play(Write(theorem))
+        self.play(theorem.animate.move_to(3*UP))
+
+        # Create the axis and target density using the same styling as region 1
+        ax_conv = Axes(
+            x_range=[-4, 4],
+            y_range=[-0.03, 0.6],
+            width=10,
+            height=5.75,
+            x_axis_config=dict(
+                stroke_color=WHITE,
+                include_ticks=False,
+                include_tip=False,
+            ),
+            y_axis_config=dict(
+                stroke_opacity=0.0,
+                include_ticks=False,
+                include_tip=False,
+            ),
+        )
+        ax_conv.move_to(DOWN * 0.4)
+
+        # Create a group to hold plot elements (same as region 1)
+        plot_group_conv = VGroup()
+        plot_group_conv.add(ax_conv)
+        self.add(plot_group_conv)
+
+        # Draw the target density (same as region 2)
+        pdf_curve_conv = ax_conv.get_graph(
+            lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
+            0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
+            color=WHITE
+        )
+        plot_group_conv.add(pdf_curve_conv)
+        self.play(ShowCreation(pdf_curve_conv), run_time=2)
+
+        # Create containers for scatter & histogram (same as region 3)
+        scatter_dots_conv = VGroup()
+        histogram_bars_conv = VGroup()
+        plot_group_conv.add(scatter_dots_conv, histogram_bars_conv)
+
+        # Define sample sizes to demonstrate convergence
+        sample_sizes = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000]  # Much fewer sample sizes
+
+        # Generate MCMC samples for demonstration using the same function as earlier
+        np.random.seed(42)  # For reproducibility
+        
+        # Define the target PDF function (same as used earlier in the file)
+        def target_pdf_conv(x):
+            if NORMAL:
+                return np.exp(-x**2 / 2) / np.sqrt(2 * np.pi)
+            else:
+                return 0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x))
+        
+        # Use the mcmc_sampling function to generate proper MCMC samples
+        all_samples = mcmc_sampling(target_pdf_conv, nsamples=sample_sizes[-1], xinit=0.0)
+
+        # Set up histogram bins (same as region 4)
+        bin_edges_conv = np.linspace(-4, 4, 21)  # 20 equal-width bins
+
+        # Create a sample count label with separate "Samples:" and number components
+        samples_text = Text("Samples: ", font="Gill Sans", font_size=36, color=TBLUE)
+        samples_text.set_color(TBLUE)
+        samples_number = Text("0", font="Gill Sans", font_size=36, color=TBLUE)
+        samples_number.next_to(samples_text, RIGHT, buff=0.1)
+        samples_number.set_color(TBLUE)
+        sample_count_label = VGroup(samples_text, samples_number)
+        
+        # Position in upper left of the plot area
+        sample_count_label.move_to(ax_conv.c2p(-2, 0.45))
+        self.play(Write(sample_count_label), run_time=0.5)
+
+        # Animate through different sample sizes (similar to region 5)
+        for i, n_samples in enumerate(sample_sizes):
+            # Get the first n_samples from our generated data
+            current_samples = all_samples[:n_samples]
+            
+            # Update only the number part of the sample count label
+            new_samples_number = Text(f"{n_samples:,}", font="Gill Sans", font_size=36, color=TBLUE)
+            new_samples_number.set_color(TBLUE)
+            new_samples_number.next_to(samples_text, RIGHT, buff=0.1)
+            
+            # Calculate histogram once using numpy (much faster)
+            hist_counts, _ = np.histogram(current_samples, bins=bin_edges_conv)
+            total_samples = len(current_samples)
+            
+            # Create new scatter dots - only show a subset for performance
+            new_scatter_dots = VGroup()
+            # Show every 10th dot to reduce visual clutter and improve performance
+            sample_step = max(1, len(current_samples) // 500)  # Show at most 500 dots
+            for j, x in enumerate(current_samples[::sample_step]):
+                dot = Dot(ax_conv.c2p(x, 0), radius=0.08, fill_color=TBLUE, fill_opacity=0.6)
+                new_scatter_dots.add(dot)
+
+            # Rebuild histogram bars (same logic as region 5)
+            new_bars_conv = VGroup()
+            for j, c in enumerate(hist_counts):
+                if c == 0:
+                    continue
+                x_left = bin_edges_conv[j]
+                x_right = bin_edges_conv[j+1]
+                # Normalize the bar heights so that total area is 1
+                bar_width = x_right - x_left
+                bar_height = c / (bar_width * total_samples)
+
+                # Create rectangle for histogram bar
+                bar = Rectangle(
+                    width=bar_width * ax_conv.x_axis.get_unit_size(),
+                    height=bar_height * ax_conv.y_axis.get_unit_size(),
+                    fill_color=WHITE,
+                    fill_opacity=0.3,
+                    stroke_width=1,
+                    stroke_color=WHITE
+                )
+                # Position the bar correctly
+                bar.move_to(ax_conv.c2p((x_left + x_right) / 2, bar_height / 2))
+                new_bars_conv.add(bar)
+
+            # Animate the transition to the new histogram and dots
+            if i == 0:
+                # First iteration - show everything
+                self.play(
+                    Transform(samples_number, new_samples_number),
+                    FadeIn(new_scatter_dots),
+                    Transform(histogram_bars_conv, new_bars_conv),
+                    run_time=0.5
+                )
+                scatter_dots_conv = new_scatter_dots
+            else:
+                # Subsequent iterations - transform to new state
+                self.play(
+                    Transform(samples_number, new_samples_number),
+                    Transform(scatter_dots_conv, new_scatter_dots),
+                    Transform(histogram_bars_conv, new_bars_conv),
+                    run_time=0.5
+                )
+            
+            # Brief pause to observe the histogram
+            self.wait(0.25)
+        
+        # endregion
+
         
