@@ -2427,4 +2427,55 @@ class MCMC(Scene):
         
         # endregion
 
+        # region 35. Start of practical considerations --------
+        # Fade out the convergence plot elements and move theorem back to just above center
+        prob_text = Text("Pretty Cool! Just one problem...", font="Gill Sans", font_size=36, color=TBLUE)
+        prob_text.set_color(TBLUE)
+        prob_text.move_to(0.25 * DOWN)
+
+        self.play(
+            FadeOut(plot_group_conv),
+            FadeOut(sample_count_label),
+            FadeOut(scatter_dots_conv),
+            theorem.animate.move_to(0.25 * UP),
+            run_time=1.5
+        )
+
+        self.play(
+            Write(prob_text),
+            run_time=1.0
+        )
+
+        # Highlight "in the limit of infinite samples" in the theorem
+        theorem_parts = theorem.get_parts_by_text("in the limit of infinite samples!")
+        if theorem_parts:
+            # Create a box around the highlighted text
+            # Get the bounding box of all the theorem parts
+            if len(theorem_parts) > 0:
+                # Calculate the bounding rectangle for all parts
+                left = min([part.get_left()[0] for part in theorem_parts])
+                right = max([part.get_right()[0] for part in theorem_parts])
+                bottom = min([part.get_bottom()[1] for part in theorem_parts])
+                top = max([part.get_top()[1] for part in theorem_parts])
+                
+                # Add some padding
+                padding = 0.1
+                highlight_box = Rectangle(
+                    width=right - left + 2 * padding,
+                    height=top - bottom + 2 * padding,
+                    stroke_color=YELLOW,
+                    stroke_width=2,
+                    fill_opacity=0.0
+                )
+                highlight_box.move_to([(left + right) / 2, (top + bottom) / 2, 0])
+                
+                self.play(
+                    *[theorem_part.animate.set_color(YELLOW) for theorem_part in theorem_parts],
+                    ShowCreation(highlight_box),
+                    lag_ratio=0.25,
+                    run_time=2.0
+                )
+
+        # endregion
+
         
