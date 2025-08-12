@@ -2476,6 +2476,94 @@ class MCMC(Scene):
                     run_time=2.0
                 )
 
+        # Move current text to the top to make room for the clock action
+        # Calculate the current vertical separation between the texts
+        current_separation = theorem.get_center()[1] - prob_text.get_center()[1]
+
+        # Make the highlight box disappear instantly
+        self.remove(highlight_box)
+        
+        self.play(
+            theorem.animate.move_to(2.5 * UP).set_opacity(0.3),
+            prob_text.animate.move_to(2.5 * UP - current_separation * UP).set_opacity(0.3),
+            run_time=1.0
+        )
+
+        # Create a clock for the silly animation
+        clock_radius = 1.2  # Increased from 0.8
+        clock_circle = Circle(radius=clock_radius, color=WHITE, stroke_width=4)  # Thicker stroke
+        clock_circle.move_to(ORIGIN)  # Center of screen
+        
+        # Clock hands (hour and minute) - bigger
+        hour_hand = Line(ORIGIN, UP * 0.6, color=WHITE, stroke_width=6)  # Increased from 0.4 and stroke 4
+        minute_hand = Line(ORIGIN, UP * 0.9, color=WHITE, stroke_width=4)  # Increased from 0.6 and stroke 2
+        hour_hand.move_to(clock_circle.get_center())
+        minute_hand.move_to(clock_circle.get_center())
+        
+        # Clock numbers (12, 3, 6, 9) - bigger
+        twelve = Text("12", font_size=28, color=WHITE)  # Increased from 20
+        twelve.move_to(clock_circle.get_center() + UP * 0.8)  # Increased from 0.55
+        three = Text("3", font_size=28, color=WHITE)
+        three.move_to(clock_circle.get_center() + RIGHT * 0.8)
+        six = Text("6", font_size=28, color=WHITE)
+        six.move_to(clock_circle.get_center() + DOWN * 0.8)
+        nine = Text("9", font_size=28, color=WHITE)
+        nine.move_to(clock_circle.get_center() + LEFT * 0.8)
+        
+        clock_numbers = VGroup(twelve, three, six, nine)
+        clock_group = VGroup(clock_circle, hour_hand, minute_hand, clock_numbers)
+        
+        # Create the "nobody has time" text 
+        infinite_text = Text("Nobody has time for infinite samples!", font="Gill Sans", font_size=44, color=ORANGE)
+        infinite_text.next_to(clock_group, DOWN, buff=0.5)  # Position it below the clock
+
+        # Show the clock
+        self.play(
+            FadeIn(clock_group),
+            Write(infinite_text),
+            run_time=1.0  # Changed back from 0.1
+        )
+        
+        # Make the clock tick fast (minute hand spinning rapidly)
+        self.play(
+            Rotate(minute_hand, angle=8*TAU, about_point=clock_circle.get_center()),
+            Rotate(hour_hand, angle=2*TAU/3, about_point=clock_circle.get_center()),
+            run_time=3.0,
+            rate_func=linear
+        )
+        
+        self.wait(1.0)
+        
+        # Fade out all text elements on screen
+        self.play(
+            FadeOut(theorem),
+            FadeOut(prob_text),
+            FadeOut(clock_group),
+            FadeOut(infinite_text),
+            run_time=0.5
+        )
+
         # endregion
+
+        # region 36. Practical considerations --------
+        finite_text = Text("We can still make a finite sample size work well!", font="Gill Sans", font_size=36)
+        self.play(
+            Write(finite_text),
+            run_time=1.0
+        )
+
+        trick_text = Text("Sometimes we just need a few extra tricks!", font="Gill Sans", font_size=36)
+        trick_text.set_color(TYELLOW)
+        trick_text.move_to(0.25 * DOWN)
+        self.play(
+            Write(trick_text),
+            finite_text.animate.move_to(0.25 * UP),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # Idea: to illustrate these tricks, let's sample from a trickier target distribution
+        # pick a target density with a smaller region of high probability
 
         
