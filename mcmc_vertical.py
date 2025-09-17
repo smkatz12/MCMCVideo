@@ -2887,5 +2887,239 @@ class MCMC(Scene):
 
         # endregion
 
+        # region 40. Fade everything out and move Burn In text to left and add MCMC Tricks text at top
+
+        tricks_text = Text("MCMC Tricks", font="Gill Sans", font_size=54)
+        tricks_text.set_color(WHITE)
+        tricks_text.move_to(3 * UP)
+
+        self.play(
+            *[FadeOut(dot) for dot in new_sample_dots],
+            FadeOut(histogram_bars),
+            FadeOut(new_pdf_curve),
+            FadeOut(ax),
+            FadeIn(tricks_text),
+            burn_in_text.animate.move_to(3 * LEFT + UP * 1.5),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 41. Thinning
+
+        thinning_text = Text("Thinning", font="Gill Sans", font_size=54)
+        thinning_text.set_color(TRED)
+        thinning_text.move_to(burn_in_text.get_left() + DOWN * 1.5, aligned_edge=LEFT)
+
+        self.play(Write(thinning_text), 
+                  burn_in_text.animate.set_opacity(0.4),
+                  run_time=1.0)
+
+        # Create a demonstration chain for thinning
+        # Generate sample points for the chain (we'll use every 3rd point to show thinning)
+        np.random.seed(20)  # For reproducibility
+        demo_samples = mcmc_sampling(target_pdf, nsamples=30, xinit=0.0, scale_factor=0.5)
         
+        # Create dots for the chain at extended positions (vertically spread)
+        chain_extension = 4.5  # How far to extend the chain vertically
+        chain_dots = []
+        chain_lines = []
         
+        for i, x_val in enumerate(demo_samples):
+            # Calculate vertical extension - linear taper from full extension to axis
+            extension_factor = 1.0 - (i / (len(demo_samples) - 1))  # 1.0 to 0.0
+            y_extension = chain_extension * extension_factor
+            
+            # Create dot at extended position
+            axis_pos = ax.c2p(x_val+1, 0)
+            extended_pos = axis_pos + UP * y_extension
+            
+            dot = Dot(extended_pos, radius=0.08, fill_color=TBLUE, fill_opacity=0.8)
+            chain_dots.append(dot)
+            
+            # Create connecting line to previous dot
+            if i > 0:
+                line = Line(chain_dots[i-1].get_center(), dot.get_center())
+                line.set_stroke(TBLUE, width=2, opacity=0.8)
+                chain_lines.append(line)
+        
+        # Group all chain elements
+        chain_group = VGroup(*chain_dots, *chain_lines)
+        
+        # Fade in the chain
+        self.play(FadeIn(chain_group), run_time=2.0)
+        self.wait(1.0)
+        
+        # Mark 2 out of every 3 samples as red (samples to be discarded)
+        # Keep indices 0, 3, 6, 9, etc. (every 3rd sample starting from 0)
+        samples_to_discard = []
+        samples_to_keep = []
+        
+        for i, dot in enumerate(chain_dots):
+            if i % 3 == 0:  # Keep every 3rd sample
+                samples_to_keep.append(dot)
+            else:  # Discard the other 2
+                samples_to_discard.append(dot)
+        
+        # Also mark lines connected to discarded samples as red
+        lines_to_discard = []
+        lines_to_keep = []
+        
+        for i, line in enumerate(chain_lines):
+            # A line connects sample i to sample i+1
+            if (i+1) % 3 != 0 or i % 3 != 0:  # If either endpoint is being discarded
+                lines_to_discard.append(line)
+            # Lines to keep will be recreated later
+        
+        # Animate marking samples and lines for removal (turn red)
+        discard_animations = []
+        for dot in samples_to_discard:
+            discard_animations.append(dot.animate.set_fill(TRED, opacity=0.9))
+        for line in lines_to_discard:
+            discard_animations.append(line.animate.set_stroke(TRED, opacity=0.9))
+        
+        self.play(*discard_animations, run_time=1.5)
+        self.wait(0.5)
+        
+        # Shrink the red dots and lines to center (dramatic "poof" effect)
+        poof_animations = []
+        for dot in samples_to_discard:
+            poof_animations.append(dot.animate.scale(0.01).set_fill(opacity=0))
+        for line in lines_to_discard:
+            poof_animations.append(line.animate.set_stroke(opacity=0))
+        
+        self.play(*poof_animations, run_time=1.0)
+        
+        # Remove the discarded elements
+        self.remove(*samples_to_discard, *lines_to_discard)
+        
+        # Create new connecting lines between the remaining samples
+        new_chain_lines = []
+        for i in range(len(samples_to_keep) - 1):
+            new_line = Line(
+                samples_to_keep[i].get_center(), 
+                samples_to_keep[i+1].get_center()
+            )
+            new_line.set_stroke(TBLUE, width=3, opacity=0.9)
+            new_chain_lines.append(new_line)
+        
+        # Animate the new connections appearing
+        self.play(
+            *[ShowCreation(line) for line in new_chain_lines],
+            run_time=2.0
+        )
+        
+        self.wait(1.0)
+        
+        # Fade out the demonstration chain
+        self.play(
+            FadeOut(VGroup(*samples_to_keep, *new_chain_lines)),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 42. Better kernels
+
+        better_kernels_text = Text("Better Kernels", font="Gill Sans", font_size=54)
+        better_kernels_text.set_color(TRED)
+        better_kernels_text.move_to(thinning_text.get_left() + DOWN * 1.5, aligned_edge=LEFT)
+
+        self.play(Write(better_kernels_text),
+                    thinning_text.animate.set_opacity(0.4),
+                    run_time=1.0)
+
+        # Select 5 key MCMC algorithms to show as papers
+        paper_algorithms = [
+            "Hamiltonian Monte Carlo",
+            "No-U-Turn Sampler", 
+            "Metropolis Adjusted Langevin Algorithm",
+            "Slice Sampling",
+            "Parallel Tempering"
+        ]
+        
+        # Colors for different papers
+        paper_colors = [TBLUE, TGREEN, TPURPLE, TYELLOW, TPINK]
+        
+        paper_mobjects = []
+        
+        # Create and animate papers appearing one by one
+        for i, algorithm_name in enumerate(paper_algorithms):
+            # Create paper rectangle (8.5x11 aspect ratio, scaled down)
+            paper_width = 2.5
+            paper_height = 3.2
+            paper_rect = Rectangle(
+                width=paper_width,
+                height=paper_height,
+                stroke_color=WHITE,
+                stroke_width=2,
+                fill_opacity=0.8,
+                fill_color=BLACK
+            )
+            
+            # Create title at top of paper
+            # Handle MALA as a special case for two lines
+            if algorithm_name == "Metropolis Adjusted Langevin Algorithm":
+                title_line1 = Text("Metropolis Adjusted", font="Gill Sans", font_size=16, weight=BOLD)
+                title_line2 = Text("Langevin Algorithm", font="Gill Sans", font_size=16, weight=BOLD)
+                title_line1.set_color(paper_colors[i])
+                title_line2.set_color(paper_colors[i])
+                title_line1.move_to(paper_rect.get_top() + DOWN * 0.25)
+                title_line2.move_to(paper_rect.get_top() + DOWN * 0.45)
+                title = VGroup(title_line1, title_line2)
+            else:
+                title = Text(algorithm_name, font="Gill Sans", font_size=16, weight=BOLD)
+                title.set_color(paper_colors[i])
+                title.move_to(paper_rect.get_top() + DOWN * 0.3)
+            
+            # Create horizontal lines to represent text content
+            text_lines = VGroup()
+            for line_num in range(8):  # 8 lines of "text"
+                line_y = paper_rect.get_top()[1] - 0.8 - (line_num * 0.25)
+                # Vary line lengths slightly for realism
+                line_length = paper_width * 0.7 + ((-1)**line_num) * 0.2
+                text_line = Line(
+                    start=[paper_rect.get_left()[0] + 0.2, line_y, 0],
+                    end=[paper_rect.get_left()[0] + 0.2 + line_length, line_y, 0],
+                    stroke_width=1,
+                    stroke_color=GREY_A,
+                    stroke_opacity=0.6
+                )
+                text_lines.add(text_line)
+            
+            # Group paper elements
+            paper = VGroup(paper_rect, title, text_lines)
+            
+            # Position papers in scattered arrangement on right side
+            base_x = 1.2 + i * 0.8  # Spread horizontally (increased from 0.8 to 1.3)
+            base_y = 0.0 #  - i * 0.3  # Slight vertical offset
+            
+            # Add some randomness to position and rotation for realistic scatter
+            random_x_offset = 0 # (-1)**i * 0.4  # Increased from 0.3 to 0.4
+            random_y_offset = 0 # (i % 3 - 1) * 0.25  # Increased from 0.2 to 0.25
+            random_rotation = -(i - 2) * 0.15  # Small rotation angles
+            
+            paper.move_to([base_x + random_x_offset, base_y + random_y_offset, 0])
+            paper.rotate(random_rotation)
+            
+            paper_mobjects.append(paper)
+            
+            # Animate paper appearing with a slight drop effect
+            paper.shift(UP * 2 + RIGHT * 0.5)  # Start above and to the right
+            self.play(
+                paper.animate.shift(DOWN * 2 + LEFT * 0.5),
+                run_time=0.6,
+                rate_func=lambda t: t**2  # Gravity-like easing
+            )
+            
+            # Brief pause between papers
+            self.wait(0.05)
+        
+        # Hold for a moment to let viewer see all papers
+        self.wait(2.0)
+        
+        # Fade out all papers to prepare for next section
+        all_paper_elements = VGroup(*paper_mobjects)
+        self.play(FadeOut(all_paper_elements), run_time=2.0)
+
+        # endregion
