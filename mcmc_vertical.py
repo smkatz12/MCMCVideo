@@ -60,12 +60,12 @@ class MCMC(Scene):
         # endregion
 
         # region 4. choose sample points (here: scripted demo) -----------------------
-        def mcmc_sampling(target_pdf, nsamples=500, xinit=0.0):
+        def mcmc_sampling(target_pdf, nsamples=500, xinit=0.0, scale_factor=1.0):
             x = xinit
             samples = [x]
             
             for i in range(nsamples):
-                x_new = x + np.random.normal(0, 1)
+                x_new = x + np.random.normal(0, scale_factor)
                 pdf_current = target_pdf(x)
                 pdf_new = target_pdf(x_new)
                 if pdf_current > 0:
@@ -2561,9 +2561,331 @@ class MCMC(Scene):
             run_time=1.0
         )
 
+        self.wait(0.1)
+
+        self.play(
+            FadeOut(finite_text),
+            FadeOut(trick_text),
+            run_time=1.0
+        )
+
         # endregion
 
-        # Idea: to illustrate these tricks, let's sample from a trickier target distribution
-        # pick a target density with a smaller region of high probability
+        # region 37. Burn in problem
+        self.add(ax)
+        ax.num_sampled_graph_points_per_tick = 100  # Increase for smoother curve
 
+        new_pdf_curve = ax.get_graph(
+            lambda x: 1.3 * np.exp(-(x-1)**2 / 2 * 20) / np.sqrt(2 * np.pi),
+            color=WHITE
+        )
+        self.plot_group.add(new_pdf_curve)
+
+        self.play(ShowCreation(new_pdf_curve), run_time=2)
+
+        # Create containers for scatter & histogram for the new sampling
+        new_scatter_dots = VGroup()
+        new_histogram_bars = VGroup()
+        self.plot_group.add(new_scatter_dots, new_histogram_bars)
+
+        # Define the new target PDF function for sampling
+        def new_target_pdf(x):
+            return 1.3 * np.exp(-(x-1)**2 / 2 * 20) / np.sqrt(2 * np.pi)
+
+        # Generate MCMC samples starting from a bad initial guess (x = -3)
+        np.random.seed(10)  # For reproducibility
+        bad_initial_samples = mcmc_sampling(new_target_pdf, nsamples=1000, xinit=-3.0, scale_factor=0.5)
+
+        # Set up histogram bins for the new distribution
+        new_bin_edges = np.linspace(-4, 4, 21)  # 20 equal-width bins
+        new_counts = np.zeros(len(new_bin_edges) - 1)  # histogram counts
+
+        # Store sample dots for potential chain visualization later
+        new_sample_dots = []
+        
+        # Animate each sample with emphasis on the first samples being far from the target
+        for i in range(100): # , x in enumerate(bad_initial_samples):
+            x = bad_initial_samples[i]
+            # Create scatter point
+            dot = Dot(ax.c2p(x, 0), radius=0.1, fill_color=TBLUE, fill_opacity=0.6)
+            
+            dot.set_fill(TBLUE, opacity=0.6)  # Good samples
+            
+            new_scatter_dots.add(dot)
+            new_sample_dots.append(dot)
+
+            # Update histogram data
+            idx = np.searchsorted(new_bin_edges, x, side="right") - 1
+            if 0 <= idx < len(new_counts):
+                new_counts[idx] += 1
+
+            # Rebuild histogram bars
+            new_bars = VGroup()
+            for j, c in enumerate(new_counts):
+                if c == 0:
+                    continue
+                x_left = new_bin_edges[j]
+                x_right = new_bin_edges[j+1]
+                # Normalize the bar heights so that total area is 1
+                bar_width = x_right - x_left
+                bar_height = c * 0.35 / (bar_width * sum(new_counts)) if sum(new_counts) > 0 else 0
+
+                # Create rectangle for histogram bar
+                bar = Rectangle(
+                    width=bar_width * ax.x_axis.get_unit_size(),
+                    height=bar_height * ax.y_axis.get_unit_size(),
+                    fill_color=WHITE,
+                    fill_opacity=0.3,
+                    stroke_width=1,
+                    stroke_color=WHITE
+                )
+                # Position the bar correctly
+                bar.move_to(ax.c2p((x_left + x_right) / 2, bar_height / 2))
+                new_bars.add(bar)
+
+            # Determine animation speed based on sample number
+            if i % 5 == 0 or i < 100:
+                # Determine animation speed based on sample number
+                if i < 10:  # First 10 samples: slow and clear
+                    run_time = 0.05
+                    highlight_time = 0.2
+                elif i < 50:  # Next 40 samples: medium speed
+                    run_time = 0.01
+                    highlight_time = 0.05
+                else:  # Remaining samples: very fast
+                    run_time = 0.001
+                    highlight_time = 0.001
+
+                # animate: drop dot, then transform histogram
+                highlight_dot = dot.copy().set_fill(TBLUE, opacity=0.8).scale(1.5)
+                self.play(FadeIn(dot), Transform(histogram_bars, new_bars), FadeIn(highlight_dot, scale=0.5), run_time=run_time)
+                
+                self.play(
+                    FadeOut(highlight_dot, scale=1.5),
+                    run_time=highlight_time
+                    )
+            else:
+                self.add(dot)
+
+        # endregion
+
+        # region 38. Run for longer
+        self.wait(0.5)
+
+        # Draw a oval around the initial samples to highlight the burn-in issue
+        burn_in_oval = Ellipse(width=4.3, height=1)
+        burn_in_oval.set_stroke(TRED, width=3)
+        burn_in_oval.move_to(ax.c2p(-1.6, 0.01))
+
+        self.play(ShowCreation(burn_in_oval), run_time=1.0)
+
+        # Animate each sample with emphasis on the first samples being far from the target
+        for i in range(100,750): # , x in enumerate(bad_initial_samples):
+            x = bad_initial_samples[i]
+            # Create scatter point
+            dot = Dot(ax.c2p(x, 0), radius=0.1, fill_color=TBLUE, fill_opacity=0.6)
+            
+            dot.set_fill(TBLUE, opacity=0.6)  # Good samples
+            
+            new_scatter_dots.add(dot)
+            new_sample_dots.append(dot)
+
+            # Update histogram data
+            idx = np.searchsorted(new_bin_edges, x, side="right") - 1
+            if 0 <= idx < len(new_counts):
+                new_counts[idx] += 1
+
+            # Rebuild histogram bars
+            new_bars = VGroup()
+            for j, c in enumerate(new_counts):
+                if c == 0:
+                    continue
+                x_left = new_bin_edges[j]
+                x_right = new_bin_edges[j+1]
+                # Normalize the bar heights so that total area is 1
+                bar_width = x_right - x_left
+                bar_height = c * 0.35 / (bar_width * sum(new_counts)) if sum(new_counts) > 0 else 0
+
+                # Create rectangle for histogram bar
+                bar = Rectangle(
+                    width=bar_width * ax.x_axis.get_unit_size(),
+                    height=bar_height * ax.y_axis.get_unit_size(),
+                    fill_color=WHITE,
+                    fill_opacity=0.3,
+                    stroke_width=1,
+                    stroke_color=WHITE
+                )
+                # Position the bar correctly
+                bar.move_to(ax.c2p((x_left + x_right) / 2, bar_height / 2))
+                new_bars.add(bar)
+
+            # Determine animation speed based on sample number
+            if i % 5 == 0 or i < 100:
+                # Determine animation speed based on sample number
+                if i < 10:  # First 10 samples: slow and clear
+                    run_time = 0.05
+                    highlight_time = 0.2
+                elif i < 50:  # Next 40 samples: medium speed
+                    run_time = 0.01
+                    highlight_time = 0.05
+                else:  # Remaining samples: very fast
+                    run_time = 0.001
+                    highlight_time = 0.001
+
+                # animate: drop dot, then transform histogram
+                highlight_dot = dot.copy().set_fill(TBLUE, opacity=0.8).scale(1.5)
+                self.play(FadeIn(dot), Transform(histogram_bars, new_bars), FadeIn(highlight_dot, scale=0.5), run_time=run_time)
+                
+                self.play(
+                    FadeOut(highlight_dot, scale=1.5),
+                    run_time=highlight_time
+                    )
+            else:
+                self.add(dot)
+
+        # Store the sample dots for potential later use
+        self.new_sample_dots = new_sample_dots
+
+        self.wait(2)
+
+        # Fade out all dots and burn in oval, fade out histogram bars, 
+        self.play(
+            *[FadeOut(dot) for dot in new_sample_dots],
+            FadeOut(burn_in_oval),
+            FadeOut(histogram_bars),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 39. Burn in solution
+        # Show burn in at the top of the screen
+        burn_in_text = Text("Burn In Period", font="Gill Sans", font_size=54)
+        burn_in_text.set_color(TRED)
+        burn_in_text.move_to(3 * UP)
+        self.play(Write(burn_in_text), run_time=1.0)
+
+        # reset histogram counts to get ready to start over
+        new_counts = np.zeros(len(new_bin_edges) - 1)  # reset histogram
+        new_scatter_dots = VGroup()  # reset scatter dots
+        new_histogram_bars = VGroup()  # reset histogram bars
+        self.plot_group.remove(new_scatter_dots, new_histogram_bars)
+        self.plot_group.add(new_scatter_dots, new_histogram_bars)
+        new_sample_dots = []
+        self.new_sample_dots = new_sample_dots
+
+        # Animate each sample with emphasis on the first samples being far from the target
+        for i in range(100): # , x in enumerate(bad_initial_samples):
+            x = bad_initial_samples[i]
+            fc = TBLUE if i >= 15 else TRED
+            # Create scatter point
+            dot = Dot(ax.c2p(x, 0), radius=0.1, fill_color=fc, fill_opacity=0.6)
+            
+            dot.set_fill(fc, opacity=0.6)  # Good samples
+            
+            new_scatter_dots.add(dot)
+            new_sample_dots.append(dot)
+
+            # Update histogram data
+            idx = np.searchsorted(new_bin_edges, x, side="right") - 1
+            if 0 <= idx < len(new_counts):
+                new_counts[idx] += 1
+
+            # Rebuild histogram bars
+            new_bars = VGroup()
+            for j, c in enumerate(new_counts):
+                if c == 0:
+                    continue
+                x_left = new_bin_edges[j]
+                x_right = new_bin_edges[j+1]
+                # Normalize the bar heights so that total area is 1
+                bar_width = x_right - x_left
+                bar_height = c * 0.35 / (bar_width * sum(new_counts)) if sum(new_counts) > 0 else 0
+
+                # Create rectangle for histogram bar
+                bar = Rectangle(
+                    width=bar_width * ax.x_axis.get_unit_size(),
+                    height=bar_height * ax.y_axis.get_unit_size(),
+                    fill_color=WHITE,
+                    fill_opacity=0.3,
+                    stroke_width=1,
+                    stroke_color=WHITE
+                )
+                # Position the bar correctly
+                bar.move_to(ax.c2p((x_left + x_right) / 2, bar_height / 2))
+                new_bars.add(bar)
+
+            # Determine animation speed based on sample number
+            if i % 5 == 0 or i < 100:
+                # Determine animation speed based on sample number
+                if i < 10:  # First 10 samples: slow and clear
+                    run_time = 0.05
+                    highlight_time = 0.2
+                elif i < 50:  # Next 40 samples: medium speed
+                    run_time = 0.01
+                    highlight_time = 0.05
+                else:  # Remaining samples: very fast
+                    run_time = 0.001
+                    highlight_time = 0.001
+
+                # animate: drop dot, then transform histogram
+                highlight_dot = dot.copy().set_fill(fc, opacity=0.8).scale(1.5)
+                self.play(FadeIn(dot), Transform(histogram_bars, new_bars), FadeIn(highlight_dot, scale=0.5), run_time=run_time)
+                
+                self.play(
+                    FadeOut(highlight_dot, scale=1.5),
+                    run_time=highlight_time
+                    )
+            else:
+                self.add(dot)
+
+        self.new_sample_dots = new_sample_dots
+        self.wait(1.0)
+
+        # Poof away all the red dots and update the histogram accordingly
+        # new_sample_dots = [dot for dot in new_sample_dots if dot.get_fill_color() != TRED]
+        self.new_sample_dots = new_sample_dots
+        new_scatter_dots = VGroup(*new_sample_dots)
+        self.plot_group.remove(new_scatter_dots)
+        self.plot_group.add(new_scatter_dots)
+        new_counts = np.zeros(len(new_bin_edges) - 1)  # reset histogram
+        for i in range(15, 100): # dot in new_sample_dots:
+            x = bad_initial_samples[i]
+            # x = ax.x_axis.p2c(dot.get_center())[0]
+            idx = np.searchsorted(new_bin_edges, x, side="right") - 1
+            if 0 <= idx < len(new_counts):
+                new_counts[idx] += 1
+        # Rebuild histogram bars
+        new_bars = VGroup()
+        for j, c in enumerate(new_counts):
+            if c == 0:
+                continue
+            x_left = new_bin_edges[j]
+            x_right = new_bin_edges[j+1]
+            # Normalize the bar heights so that total area is 1
+            bar_width = x_right - x_left
+            bar_height = c * 0.35 / (bar_width * sum(new_counts)) if sum(new_counts) > 0 else 0
+
+            # Create rectangle for histogram bar
+            bar = Rectangle(
+                width=bar_width * ax.x_axis.get_unit_size(),
+                height=bar_height * ax.y_axis.get_unit_size(),
+                fill_color=WHITE,
+                fill_opacity=0.3,
+                stroke_width=1,
+                stroke_color=WHITE
+            )
+            # Position the bar correctly
+            bar.move_to(ax.c2p((x_left + x_right) / 2, bar_height / 2))
+            new_bars.add(bar)
+        self.play(
+            *[ShrinkToCenter(dot) for dot in new_sample_dots if dot.get_fill_color() == TRED],
+            run_time=1.0)
+        self.play(
+            Transform(histogram_bars, new_bars), 
+            run_time=1.0)
+
+        # endregion
+
+        
         
