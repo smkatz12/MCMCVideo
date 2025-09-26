@@ -3123,3 +3123,501 @@ class MCMC(Scene):
         self.play(FadeOut(all_paper_elements), run_time=2.0)
 
         # endregion
+
+        # region 43. Fade Out Everything
+        self.play(
+            FadeOut(better_kernels_text),
+            FadeOut(thinning_text),
+            FadeOut(burn_in_text),
+            FadeOut(tricks_text),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 44. okay but who care if we can do this?
+        care_text = Text("Okay, but who cares if we can do this?", font="Gill Sans", font_size=64)
+        self.play(Write(care_text), run_time=1.0)
+
+        self.wait(0.5)
+
+        properties_text = Text("Properties of a valid probability distribution:", font="Gill Sans", font_size=48)
+        properties_text.move_to(1 * UP)
+        self.play(
+            FadeOut(care_text),
+            run_time=0.5)
+        self.play(
+            Write(properties_text),
+            run_time=1.0
+        )
+
+        # Add probability density function properties
+        # Property 1: p(x) > 0
+        prop1_text = Tex("p(x) > 0", font_size=44)
+        prop1_circle = Circle(radius=0.3, stroke_color=WHITE, stroke_width=2)
+        prop1_number = Text("1", font_size=24, color=WHITE)
+        prop1_label = VGroup(prop1_circle, prop1_number)
+        prop1_group = VGroup(prop1_label, prop1_text).arrange(RIGHT, buff=0.3)
+        
+        # Property 2: integral p(x)dx = 1
+        prop2_text = Tex(r"\int_{-\infty}^{\infty} p(x) \, dx = 1", font_size=44)
+        prop2_circle = Circle(radius=0.3, stroke_color=WHITE, stroke_width=2)
+        prop2_number = Text("2", font_size=24, color=WHITE)
+        prop2_label = VGroup(prop2_circle, prop2_number)
+        prop2_group = VGroup(prop2_label, prop2_text).arrange(RIGHT, buff=0.3)
+        
+        # Arrange both properties side by side in the center, below the title
+        properties_group = VGroup(prop1_group, prop2_group).arrange(RIGHT, buff=1.5)
+        properties_group.move_to(0.5 * DOWN)  # Position below the title
+        
+        # Animate the properties appearing
+        self.play(
+            FadeIn(prop1_label),
+            Write(prop1_text),
+            run_time=1.5
+        )
+        self.play(
+            FadeIn(prop2_label),
+            Write(prop2_text),
+            run_time=1.5
+        )
+        self.wait(2)
+
+        # endregion
+
+        # region 45. focus on second property
+
+        self.play(
+            FadeOut(prop1_group),
+            FadeOut(properties_text),
+            FadeOut(prop2_label),
+            prop2_text.animate.move_to(ORIGIN).scale(1.5),
+            run_time=1.0
+        )
+
+        self.wait(0.5)
+
+        pdf_curve = ax.get_graph(
+            lambda x: np.exp(-x**2 / 2) / np.sqrt(2 * np.pi) if NORMAL else
+            0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x)),
+            color=WHITE
+        )
+        self.plot_group.add(pdf_curve)
+
+        fofx = Tex("f(x)", font_size=36)
+        fofx.move_to(ax.c2p(1.25, 0.5))
+    
+        self.play(prop2_text.animate.move_to(3 * UP + 5 * LEFT).scale(0.5).set_opacity(0.75),
+            FadeIn(pdf_curve),
+            FadeIn(ax),
+            FadeIn(fofx),
+            run_time=1
+        )
+        prop2_box = SurroundingRectangle(prop2_text, buff=0.1)
+        prop2_box.set_stroke(WHITE, width=1)
+        self.play(ShowCreation(prop2_box), run_time=1)
+
+        self.wait(1)
+        
+        # Create the individual parts for transformation
+        integral_symbol = Tex(r"\int_{-\infty}^{\infty}", font_size=48)
+        dx_part = Tex(r"dx", font_size=48)
+
+        # Position the parts to align with the final integral
+        integral_symbol.next_to(ORIGIN, LEFT, buff=0.5)  # Position integral symbol
+        dx_part.next_to(ORIGIN, RIGHT, buff=0.5)  # Position dx part
+
+        self.play(
+            FadeOut(pdf_curve),
+            FadeOut(ax),
+            fofx.animate.move_to(ORIGIN).scale(1.2),
+            FadeIn(integral_symbol),
+            FadeIn(dx_part),
+            run_time=1.5
+        )
+
+        # endregion
+
+        # region 46. Focus on integral group
+
+        integral_group = VGroup(integral_symbol, fofx, dx_part)
+        integral_group_copy = integral_group.copy()
+        divided_by_line = Line(0.5 * LEFT, 0.5 * RIGHT).scale(3)
+        divided_by_line.set_stroke(WHITE, width=2)
+
+        self.play(
+            integral_group.animate.move_to(integral_group.get_center() + UP * 0.7),
+            FadeIn(divided_by_line),
+            integral_group_copy.animate.move_to(integral_group.get_center() - UP * 0.7),
+            run_time=1.0
+        )
+
+        equals_one = Tex("= 1", font_size=48)
+        equals_one.next_to(divided_by_line, RIGHT, buff=-0.2)
+
+        self.play(
+            FadeIn(equals_one),
+            equals_one.animate.next_to(divided_by_line, RIGHT, buff=0.5),
+            run_time=1.0
+        )
+
+        self.play(
+            integral_symbol.animate.move_to(ORIGIN + 1.8 * LEFT).scale(1.5),
+            dx_part.animate.move_to(ORIGIN + 1.6 * RIGHT).scale(1.5),
+            fofx.animate.move_to(ORIGIN + 0.5 * UP).scale(0.8),
+            divided_by_line.animate.scale(0.6),
+            integral_group_copy.animate.move_to(ORIGIN + 0.5 * DOWN).scale(0.6),
+            equals_one.animate.next_to(ORIGIN + 1.6 * RIGHT, RIGHT, buff=0.9).scale(1.5)
+        )
+
+        # endregion
+
+        # region 47. compare to property
+        whole_thing = VGroup(integral_symbol, dx_part, fofx, divided_by_line, integral_group_copy, equals_one)
+
+        self.play(
+            whole_thing.animate.move_to(1.25 * DOWN),
+            prop2_text.animate.move_to(1.25 * UP).scale(1.8).set_opacity(1.0),
+            prop2_box.animate.move_to(1.25 * UP).scale(1.8),
+            run_time=1.0
+        )
+
+        self.play(
+            fofx.animate.set_color(TBLUE),
+            divided_by_line.animate.set_color(TBLUE),
+            integral_group_copy.animate.set_color(TBLUE),
+            prop2_text[4:8].animate.set_color(TBLUE),
+            run_time=1.0
+        )
+
+        blue_group = VGroup(fofx, divided_by_line, integral_group_copy)
+
+        equals = Tex("=", font_size=48)
+        equals.set_color(TBLUE)
+        
+        self.play(
+            prop2_text[4:8].animate.move_to(2.0 * LEFT).scale(1.5),
+            equals.animate.move_to([-0.6, 0, 0]),
+            blue_group.animate.move_to(1.4 * RIGHT + 0.15 * DOWN).scale(1.8),
+            FadeOut(integral_symbol),
+            FadeOut(dx_part),
+            FadeOut(equals_one),
+            FadeOut(prop2_box),
+            FadeOut(prop2_text[0:4]),
+            FadeOut(prop2_text[8:]),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 48. point out density function and normalizing constant
+        density_text = Text("Density Function", font="Gill Sans", font_size=40)
+        density_text.move_to(2.5 * UP + 1 * LEFT)
+        density_arrow = Arrow(density_text.get_bottom(), fofx.get_top() + 0.4 * LEFT, buff=0.25, thickness=1.5)
+        density_arrow.set_stroke(WHITE)
+
+        self.play(
+            Write(density_text),
+            GrowArrow(density_arrow),
+            run_time=1.0
+        )
+        normalizing_text = Text("Normalizing Constant", font="Gill Sans", font_size=40)
+        normalizing_text.move_to(3 * DOWN + 1 * LEFT)
+        normalizing_arrow = Arrow(normalizing_text.get_top(), blue_group.get_bottom() + 0.8 * LEFT, buff=0.25, thickness=1.5)
+        normalizing_arrow.set_stroke(WHITE)
+
+        self.play(
+            Write(normalizing_text),
+            GrowArrow(normalizing_arrow),
+            run_time=1.0
+        )
+
+        # self.play(
+        #     Indicate(normalizing_text[11:], color=TPURPLE),
+        #     run_time=1.0
+        # )
+
+        hard_to_compute = Text("Hard to compute :(", font="Gill Sans", font_size=40)
+        hard_to_compute.set_color(TRED)
+        hard_to_compute.next_to(normalizing_text, DOWN, buff=0.15)
+
+        self.play(
+            Write(hard_to_compute),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 49. show normalizing constant on function
+        # blue_group.add(prop2_text[4:8], equals)
+
+        self.play(
+            FadeIn(pdf_curve),
+            FadeIn(ax),
+            blue_group.animate.move_to(3.5 * RIGHT + 2 * UP).scale(0.5).set_color(WHITE),
+            FadeOut(density_text),
+            FadeOut(density_arrow),
+            FadeOut(normalizing_text),
+            FadeOut(normalizing_arrow),
+            FadeOut(hard_to_compute),
+            FadeOut(prop2_text),
+            FadeOut(equals),
+            run_time=1.0
+        )
+
+        blue_group.remove(divided_by_line)
+        blue_group.remove(integral_group_copy)
+        whole_thing.remove(divided_by_line)
+        whole_thing.remove(integral_group_copy)
+
+        numerator = Tex(r"\exp(-x^2 / 2) (1 + 0.5 \sin(3 x))", font_size=24)
+
+        div_line = Line(0.7 * LEFT, 0.7 * RIGHT).scale(3)
+        div_line.set_stroke(WHITE, width=1.5)
+        div_line.move_to(divided_by_line)
+
+
+        numerator.move_to(fofx)
+
+        self.play(Transform(fofx, numerator),
+            Transform(divided_by_line, div_line),
+            run_time=1.0)
+
+        denominator = Tex(r"\int_{-\infty}^{\infty} \exp(-x^2 / 2) (1 + 0.5 \sin(3 x)) \, dx", font_size=24)
+        denominator.move_to(integral_group_copy)
+
+        self.play(Transform(integral_group_copy, denominator),
+            run_time=1.0)
+        
+        # endregion
+
+        # region 50. highlight denominator constant
+
+        surr_box = SurroundingRectangle(integral_group_copy, buff=0.1)
+        surr_box.set_stroke(TRED, width=1.5)
+        norm_const = Text("Normalizing Constant", font="Gill Sans", font_size=32)
+        norm_const.set_color(TRED)
+        norm_const.next_to(surr_box, DOWN, buff=0.2)
+        self.play(ShowCreation(surr_box), 
+                  integral_group_copy.animate.set_color(TRED),
+                  Write(norm_const),
+                  run_time=1.0)
+        
+        self.play(
+            Indicate(norm_const[11:], color=TGREEN),
+            run_time=1.0
+        )
+
+        cons = Tex(r"z", font_size=32)
+        cons.set_color(TGREEN)
+        cons.move_to(integral_group_copy.get_center() + 0.1 * UP)
+        self.play(Transform(integral_group_copy, cons),
+            FadeOut(surr_box),
+            FadeOut(norm_const),
+            run_time=1.0
+        )
+        
+        # endregion
+
+        # region 51. show function scaling
+
+        # Create a ValueTracker to control the z parameter
+        z_tracker = ValueTracker(1.0)
+        
+        # Create updater function for the z value display
+        def update_z_text(mob):
+            z_val = z_tracker.get_value()
+            new_text = Tex(f"{z_val:.2f}", font_size=32)
+            new_text.set_color(TGREEN)
+            new_text.move_to(integral_group_copy.get_center())
+            mob.become(new_text)
+        
+        # Create updater function for the function curve
+        def update_curve(mob):
+            z_val = z_tracker.get_value()
+            new_curve = ax.get_graph(
+                lambda x, z=z_val: (1/z) * (0.4 * np.exp(-x**2 / 2) * (1 + 0.5 * np.sin(3 * x))) if not NORMAL else
+                (1/z) * np.exp(-x**2 / 2) / np.sqrt(2 * np.pi),
+                color=WHITE
+            )
+            mob.become(new_curve)
+        
+        # Add updaters to the mobjects
+        integral_group_copy.add_updater(update_z_text)
+        pdf_curve.add_updater(update_curve)
+        
+        # Animate through the z value transitions: 1 → 0.8 → 1.5 → 1.0
+        self.play(z_tracker.animate.set_value(0.8), run_time=0.4, rate_func=smooth)
+        self.play(z_tracker.animate.set_value(1.5), run_time=1.4, rate_func=smooth)
+        self.play(z_tracker.animate.set_value(1.0), run_time=1.0, rate_func=smooth)
+        
+        # Remove updaters to prevent issues with future animations
+        integral_group_copy.remove_updater(update_z_text)
+        pdf_curve.remove_updater(update_curve)
+        
+        # Hold at the final state briefly
+        self.wait(1.0)
+
+        self.play(
+            FadeOut(integral_group_copy),
+            FadeOut(divided_by_line),
+            FadeOut(fofx),
+            FadeOut(pdf_curve),
+            FadeOut(ax),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 52. Show Chain Creation Rules --------
+        # Create the rules box in the upper left corner
+        rules_box = Rectangle(
+            width=3.0,
+            height=2.35,
+            fill_color=BLACK,
+            fill_opacity=0.8,
+            stroke_color=WHITE,
+            stroke_width=2
+        )
+        # rules_box.to_edge(LEFT, buff=0.3).to_edge(UP, buff=0.3)
+        
+        # Create the title with slightly more buffer
+        rules_title = Text("Chain Creation Rules", font="Gill Sans", font_size=24)
+        rules_title.set_color(WHITE)
+        rules_title.next_to(rules_box.get_top(), DOWN, buff=0.15)
+        
+        # Create rule 1 (currently applicable) with indented action
+        rule1_condition = Tex(r"\text{If } f(x') > f(x):", font_size=20)
+        rule1_condition.set_color(WHITE)
+        
+        rule1_action = Tex(r"\text{Accept } x'", font_size=20)
+        # rule1_action.set_color(TGREEN)
+        rule1_action.set_color(WHITE)
+        
+        # Arrange with left alignment and indent the action
+        rule1 = VGroup(rule1_condition, rule1_action).arrange(DOWN, buff=0.1, aligned_edge=LEFT)
+        rule1_action.shift(RIGHT * 0.3)  # Indent the action
+        rule1.next_to(rules_title, DOWN, buff=0.3).align_to(rules_box.get_left(), LEFT).shift(RIGHT * 0.2)
+        
+        # Create placeholder for rule 2 (to be shown later) with indented action
+        rule2_condition = Tex(r"\text{If } f(x') < f(x):", font_size=20)
+        rule2_condition.set_color(WHITE)
+        
+        rule2_action = Tex(r"\text{Accept with prob. } \frac{f(x')}{f(x)}", font_size=18)
+        # rule2_action.set_color(YELLOW)
+        rule2_action.set_color(WHITE)
+        
+        # Arrange with left alignment and indent the action
+        rule2 = VGroup(rule2_condition, rule2_action).arrange(DOWN, buff=0.1, aligned_edge=LEFT)
+        rule2_action.shift(RIGHT * 0.3)  # Indent the action
+        rule2.next_to(rule1, DOWN, buff=0.3).align_to(rule1, LEFT)
+        
+        # Group everything together (no need to center since we're using manual positioning)
+        rules_content = VGroup(rules_title, rule1, rule2, rules_box)
+        rules_content.scale(2.0)
+        
+        # Show the box and title first
+        self.play(
+            FadeIn(rules_box),
+            FadeIn(rules_title),
+            FadeIn(rule1_condition),
+            FadeIn(rule1_action),
+            FadeIn(rule2_condition),
+            FadeIn(rule2_action),
+            run_time=1.0
+        )
+
+        self.play(
+            rule1_condition[2:-1].animate.set_color(TGREEN),
+            rule2_condition[2:-1].animate.set_color(TGREEN),
+            rule2_action[15:].animate.set_color(TGREEN),
+            run_time=1.0
+        )
+
+        self.play(
+            FadeOut(rules_box),
+            FadeOut(rules_title),
+            FadeOut(rule1_condition),
+            FadeOut(rule1_action),
+            FadeOut(rule2_condition),
+            FadeOut(rule2_action),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 53. We can apply MCMC to sample from unnormalized densities!
+
+        yay = Text("We can apply MCMC to sample from unnormalized densities!", font="Gill Sans", font_size=48)
+        self.play(Write(yay), run_time=1.0)
+
+        bayes_text = Text("Bayes' Rule", font="Gill Sans", font_size=48)
+        bayes_text.set_color(TBLUE)
+        bayes_tex = Tex(r"P(y | x) = \frac{P(x | y) P(y)}{\int_{-\infty}^{\infty} P(x | y) P(y) dy}", font_size=48)
+        bayes_tex.set_color(TBLUE)
+
+        # bayes_text.move_to(1.0 * UP) 
+        bayes_tex.move_to(0.5 * DOWN)
+
+        self.play(
+            yay.animate.move_to(3 * UP).scale(0.5).set_opacity(0.75),
+            run_time=1.0
+        )
+
+        self.play(Write(bayes_text),
+                  run_time=1.0)
+
+        self.play(
+            bayes_text.animate.move_to(1.0*UP))
+        self.play(
+            Write(bayes_tex),
+            run_time=1.0)
+        
+        density_text = Text("Density Function", font="Gill Sans", font_size=40)
+        density_text.move_to(1.5 * UP + 3.5 * LEFT)
+        density_arrow = Arrow(density_text.get_bottom(), bayes_tex.get_top() + 0.1 * LEFT, buff=0.25, thickness=1.5)
+        density_arrow.set_stroke(WHITE)
+
+        self.play(
+            Write(density_text),
+            GrowArrow(density_arrow),
+            run_time=1.0
+        )
+        normalizing_text = Text("Normalizing Constant", font="Gill Sans", font_size=40)
+        normalizing_text.move_to(2.0 * DOWN + 2.5 * LEFT)
+        normalizing_arrow = Arrow(normalizing_text.get_top(), bayes_tex.get_bottom() + 0.8 * LEFT, buff=0.25, thickness=1.5)
+        normalizing_arrow.set_stroke(WHITE)
+
+        hard_to_compute = Text("Hard to compute :(", font="Gill Sans", font_size=40)
+        hard_to_compute.set_color(TRED)
+        hard_to_compute.next_to(normalizing_text, DOWN, buff=0.15)
+
+        self.play(
+            Write(normalizing_text),
+            Write(hard_to_compute),
+            GrowArrow(normalizing_arrow),
+            run_time=1.0
+        )
+
+        # endregion
+
+        # region 54. Conclude!
+        self.play(
+            yay.animate.move_to(0.25 * UP).scale(1.5).set_opacity(1.0),
+            FadeOut(bayes_text),
+            FadeOut(bayes_tex),
+            FadeOut(density_text),
+            FadeOut(density_arrow),
+            FadeOut(normalizing_text),
+            FadeOut(normalizing_arrow),
+            FadeOut(hard_to_compute),
+            run_time=1.0
+        )
+
+        concluding_text = Text("The need to do this comes up all over the place in ML and statistics!", font="Gill Sans", font_size=36)
+        concluding_text.move_to(0.25 * DOWN)
+        concluding_text.set_color(TBLUE)
+        self.play(Write(concluding_text), run_time=1.0)
+
+        # endregion
+
